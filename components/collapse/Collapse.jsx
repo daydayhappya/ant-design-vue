@@ -1,9 +1,15 @@
-
-import PropTypes from '../_util/vue-types'
-import animation from '../_util/openAnimation'
-import { getOptionProps } from '../_util/props-util'
-import RcCollapse from './src'
-import { collapseProps } from './src/commonProps'
+import animation from '../_util/openAnimation';
+import {
+  getOptionProps,
+  initDefaultProps,
+  getComponentFromProp,
+  isValidElement,
+  getListeners,
+} from '../_util/props-util';
+import { cloneElement } from '../_util/vnode';
+import VcCollapse, { collapseProps } from '../vc-collapse';
+import Icon from '../icon';
+import { ConfigConsumerProps } from '../config-provider';
 
 export default {
   name: 'ACollapse',
@@ -11,26 +17,45 @@ export default {
     prop: 'activeKey',
     event: 'change',
   },
-  props: {
-    ...collapseProps,
-    bordered: PropTypes.bool.def(true),
-    openAnimation: PropTypes.any.def(animation),
-    change: PropTypes.func.def(() => {}),
-    accordion: PropTypes.bool,
+  props: initDefaultProps(collapseProps(), {
+    bordered: true,
+    openAnimation: animation,
+    expandIconPosition: 'left',
+  }),
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
   },
-  render () {
-    const { prefixCls, bordered, $listeners } = this
+  methods: {
+    renderExpandIcon(panelProps, prefixCls) {
+      const expandIcon = getComponentFromProp(this, 'expandIcon', panelProps);
+      const icon = expandIcon || (
+        <Icon type="right" rotate={panelProps.isActive ? 90 : undefined} />
+      );
+      return isValidElement(Array.isArray(expandIcon) ? icon[0] : icon)
+        ? cloneElement(icon, {
+            class: `${prefixCls}-arrow`,
+          })
+        : icon;
+    },
+  },
+  render() {
+    const { prefixCls: customizePrefixCls, bordered, expandIconPosition } = this;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('collapse', customizePrefixCls);
+
     const collapseClassName = {
       [`${prefixCls}-borderless`]: !bordered,
-    }
+      [`${prefixCls}-icon-position-${expandIconPosition}`]: true,
+    };
     const rcCollapeProps = {
       props: {
         ...getOptionProps(this),
+        prefixCls,
+        expandIcon: panelProps => this.renderExpandIcon(panelProps, prefixCls),
       },
       class: collapseClassName,
-      on: $listeners,
-    }
-    return <RcCollapse {...rcCollapeProps}>{this.$slots.default}</RcCollapse>
+      on: getListeners(this),
+    };
+    return <VcCollapse {...rcCollapeProps}>{this.$slots.default}</VcCollapse>;
   },
-}
-
+};

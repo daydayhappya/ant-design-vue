@@ -1,7 +1,8 @@
-import '../../style/index.less'
-import './index.less'
+import '../../style/index.less';
+import './index.less';
 
 // style dependencies
-import '../../spin/style'
-import '../../pagination/style'
-import '../../grid/style'
+import '../../empty/style';
+import '../../spin/style';
+import '../../pagination/style';
+import '../../grid/style';

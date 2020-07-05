@@ -1,25 +1,15 @@
+import PropTypes from '../_util/vue-types';
+import addEventListener from '../vc-util/Dom/addEventListener';
+import getScroll from '../_util/getScroll';
+import BaseMixin from '../_util/BaseMixin';
+import getTransitionProps from '../_util/getTransitionProps';
+import { ConfigConsumerProps } from '../config-provider';
+import Base from '../base';
+import { getListeners } from '../_util/props-util';
+import scrollTo from '../_util/scrollTo';
 
-import PropTypes from '../_util/vue-types'
-import addEventListener from '../_util/Dom/addEventListener'
-import getScroll from '../_util/getScroll'
-import getRequestAnimationFrame from '../_util/getRequestAnimationFrame'
-import BaseMixin from '../_util/BaseMixin'
-import getTransitionProps from '../_util/getTransitionProps'
-
-const reqAnimFrame = getRequestAnimationFrame()
-
-const easeInOutCubic = (t, b, c, d) => {
-  const cc = c - b
-  t /= d / 2
-  if (t < 1) {
-    return cc / 2 * t * t * t + b
-  } else {
-    return cc / 2 * ((t -= 2) * t * t + 2) + b
-  }
-}
-
-function getDefaultTarget () {
-  return window
+function getDefaultTarget() {
+  return window;
 }
 
 const BackTopProps = {
@@ -27,107 +17,96 @@ const BackTopProps = {
   // onClick?: React.MouseEventHandler<any>;
   target: PropTypes.func,
   prefixCls: PropTypes.string,
-}
+  // visible: PropTypes.bool, // Only for test. Don't use it.
+};
 
-export default {
+const BackTop = {
   name: 'ABackTop',
   mixins: [BaseMixin],
   props: {
     ...BackTopProps,
     visibilityHeight: PropTypes.number.def(400),
   },
-  data () {
-    this.scrollEvent = null
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
+    this.scrollEvent = null;
     return {
       visible: false,
-    }
+    };
   },
-
-  mounted () {
+  mounted() {
     this.$nextTick(() => {
-      const getTarget = this.target || getDefaultTarget
-      this.scrollEvent = addEventListener(getTarget(), 'scroll', this.handleScroll)
-      this.handleScroll()
-    })
+      const getTarget = this.target || getDefaultTarget;
+      this.scrollEvent = addEventListener(getTarget(), 'scroll', this.handleScroll);
+      this.handleScroll();
+    });
   },
 
-  beforeDestroy () {
+  beforeDestroy() {
     if (this.scrollEvent) {
-      this.scrollEvent.remove()
+      this.scrollEvent.remove();
     }
   },
   methods: {
-    getCurrentScrollTop () {
-      const getTarget = this.target || getDefaultTarget
-      const targetNode = getTarget()
+    getCurrentScrollTop() {
+      const getTarget = this.target || getDefaultTarget;
+      const targetNode = getTarget();
       if (targetNode === window) {
-        return window.pageYOffset || document.body.scrollTop || document.documentElement.scrollTop
+        return window.pageYOffset || document.body.scrollTop || document.documentElement.scrollTop;
       }
-      return targetNode.scrollTop
+      return targetNode.scrollTop;
     },
 
-    scrollToTop (e) {
-      const scrollTop = this.getCurrentScrollTop()
-      const startTime = Date.now()
-      const frameFunc = () => {
-        const timestamp = Date.now()
-        const time = timestamp - startTime
-        this.setScrollTop(easeInOutCubic(time, scrollTop, 0, 450))
-        if (time < 450) {
-          reqAnimFrame(frameFunc)
-        }
-      }
-      reqAnimFrame(frameFunc)
-      this.$emit('click', e)
+    scrollToTop(e) {
+      const { target = getDefaultTarget } = this;
+      scrollTo(0, {
+        getContainer: target,
+      });
+      this.$emit('click', e);
     },
 
-    setScrollTop (value) {
-      const getTarget = this.target || getDefaultTarget
-      const targetNode = getTarget()
-      if (targetNode === window) {
-        document.body.scrollTop = value
-        document.documentElement.scrollTop = value
-      } else {
-        targetNode.scrollTop = value
-      }
-    },
-
-    handleScroll () {
-      const { visibilityHeight, target = getDefaultTarget } = this
-      const scrollTop = getScroll(target(), true)
+    handleScroll() {
+      const { visibilityHeight, target = getDefaultTarget } = this;
+      const scrollTop = getScroll(target(), true);
       this.setState({
         visible: scrollTop > visibilityHeight,
-      })
+      });
     },
   },
 
-  render () {
-    const { prefixCls = 'ant-back-top', $slots, $listeners } = this
+  render() {
+    const { prefixCls: customizePrefixCls, $slots } = this;
+
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('back-top', customizePrefixCls);
 
     const defaultElement = (
       <div class={`${prefixCls}-content`}>
         <div class={`${prefixCls}-icon`} />
       </div>
-    )
+    );
     const divProps = {
       on: {
-        ...$listeners,
+        ...getListeners(this),
         click: this.scrollToTop,
       },
       class: prefixCls,
-    }
+    };
 
     const backTopBtn = this.visible ? (
-      <div {...divProps}>
-        {$slots.default || defaultElement}
-      </div>
-    ) : null
-    const transitionProps = getTransitionProps('fade')
-    return (
-      <transition {...transitionProps}>
-        {backTopBtn}
-      </transition>
-    )
+      <div {...divProps}>{$slots.default || defaultElement}</div>
+    ) : null;
+    const transitionProps = getTransitionProps('fade');
+    return <transition {...transitionProps}>{backTopBtn}</transition>;
   },
-}
+};
 
+/* istanbul ignore next */
+BackTop.install = function(Vue) {
+  Vue.use(Base);
+  Vue.component(BackTop.name, BackTop);
+};
+
+export default BackTop;

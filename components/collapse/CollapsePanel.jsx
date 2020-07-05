@@ -1,39 +1,38 @@
-
-import PropTypes from '../_util/vue-types'
-import { getOptionProps } from '../_util/props-util'
-import RcCollapse from './src'
-import { panelProps } from './src/commonProps'
+import { getOptionProps, getComponentFromProp, getListeners } from '../_util/props-util';
+import VcCollapse, { panelProps } from '../vc-collapse';
+import { ConfigConsumerProps } from '../config-provider';
 
 export default {
   name: 'ACollapsePanel',
   props: {
-    name: PropTypes.string,
-    ...panelProps,
+    ...panelProps(),
   },
-  render () {
-    const { prefixCls, showArrow = true, $listeners } = this
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  render() {
+    const { prefixCls: customizePrefixCls, showArrow = true } = this;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('collapse', customizePrefixCls);
+
     const collapsePanelClassName = {
       [`${prefixCls}-no-arrow`]: !showArrow,
-    }
+    };
     const rcCollapePanelProps = {
       props: {
         ...getOptionProps(this),
+        prefixCls,
+        extra: getComponentFromProp(this, 'extra'),
       },
       class: collapsePanelClassName,
-      on: $listeners,
-    }
-    const { default: defaultSlots, header } = this.$slots
+      on: getListeners(this),
+    };
+    const header = getComponentFromProp(this, 'header');
     return (
-      <RcCollapse.Panel {...rcCollapePanelProps} >
-        {defaultSlots}
-        {header ? (
-          <template slot='header'>
-            {header}
-          </template>
-        ) : null}
-
-      </RcCollapse.Panel>
-    )
+      <VcCollapse.Panel {...rcCollapePanelProps}>
+        {this.$slots.default}
+        {header ? <template slot="header">{header}</template> : null}
+      </VcCollapse.Panel>
+    );
   },
-}
-
+};

@@ -1,222 +1,228 @@
-import classNames from 'classnames'
-import TextArea from './TextArea'
-import omit from 'omit.js'
-import inputProps from './inputProps'
-import { hasProp, getComponentFromProp, getStyle, getClass } from '../_util/props-util'
+import classNames from 'classnames';
+import TextArea from './TextArea';
+import omit from 'omit.js';
+import inputProps from './inputProps';
+import { hasProp, getComponentFromProp, getListeners, getOptionProps } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+import ClearableLabeledInput from './ClearableLabeledInput';
 
-function fixControlledValue (value) {
+function noop() {}
+
+export function fixControlledValue(value) {
   if (typeof value === 'undefined' || value === null) {
-    return ''
+    return '';
   }
-  return value
+  return value;
+}
+
+export function resolveOnChange(target, e, onChange) {
+  if (onChange) {
+    let event = e;
+    if (e.type === 'click') {
+      // click clear icon
+      //event = Object.create(e);
+      Object.defineProperty(event, 'target', {
+        writable: true,
+      });
+      Object.defineProperty(event, 'currentTarget', {
+        writable: true,
+      });
+      event.target = target;
+      event.currentTarget = target;
+      const originalInputValue = target.value;
+      // change target ref value cause e.target.value should be '' when clear input
+      target.value = '';
+      onChange(event);
+      // reset target ref value
+      target.value = originalInputValue;
+      return;
+    }
+    onChange(event);
+  }
+}
+
+export function getInputClassName(prefixCls, size, disabled) {
+  return classNames(prefixCls, {
+    [`${prefixCls}-sm`]: size === 'small',
+    [`${prefixCls}-lg`]: size === 'large',
+    [`${prefixCls}-disabled`]: disabled,
+  });
 }
 
 export default {
-  inheritAttrs: false,
   name: 'AInput',
-  props: {
-    ...inputProps,
-  },
+  inheritAttrs: false,
   model: {
     prop: 'value',
     event: 'change.value',
   },
-  data () {
-    const { value, defaultValue } = this.$props
-    return {
-      stateValue: fixControlledValue(!hasProp(this, 'value') ? defaultValue : value),
-    }
+  props: {
+    ...inputProps,
   },
-  mounted () {
-    this.$nextTick(() => {
-      if (this.autoFocus) {
-        this.focus()
-      }
-    })
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
+    const props = this.$props;
+    const value = typeof props.value === 'undefined' ? props.defaultValue : props.value;
+    return {
+      stateValue: typeof value === 'undefined' ? '' : value,
+    };
   },
   watch: {
-    value (val) {
-      this.stateValue = fixControlledValue(val)
+    value(val) {
+      this.stateValue = val;
     },
   },
+  mounted() {
+    this.$nextTick(() => {
+      if (this.autoFocus) {
+        this.focus();
+      }
+      this.clearPasswordValueAttribute();
+    });
+  },
+  beforeDestroy() {
+    if (this.removePasswordTimeout) {
+      clearTimeout(this.removePasswordTimeout);
+    }
+  },
   methods: {
-    handleKeyDown (e) {
-      if (e.keyCode === 13) {
-        this.$emit('pressEnter', e)
-      }
-      this.$emit('keydown', e)
+    focus() {
+      this.$refs.input.focus();
     },
-    handleChange (e) {
+
+    blur() {
+      this.$refs.input.blur();
+    },
+    select() {
+      this.$refs.input.select();
+    },
+
+    setValue(value, callback) {
+      if (this.stateValue === value) {
+        return;
+      }
       if (!hasProp(this, 'value')) {
-        this.stateValue = e.target.value
+        this.stateValue = value;
+        this.$nextTick(() => {
+          callback && callback();
+        });
       } else {
-        this.$forceUpdate()
-      }
-      if (!e.target.composing) {
-        this.$emit('change.value', e.target.value)
-      }
-      this.$emit('change', e)
-      this.$emit('input', e)
-    },
-
-    focus () {
-      this.$refs.input.focus()
-    },
-
-    blur () {
-      this.$refs.input.blur()
-    },
-
-    getInputClassName () {
-      const { prefixCls, size, disabled } = this.$props
-      return {
-        [`${prefixCls}`]: true,
-        [`${prefixCls}-sm`]: size === 'small',
-        [`${prefixCls}-lg`]: size === 'large',
-        [`${prefixCls}-disabled`]: disabled,
+        // 不在严格受控
+        // https://github.com/vueComponent/ant-design-vue/issues/2207，modal 是 新 new 实例，更新队列和当前不在同一个更新队列中
+        // this.$forceUpdate();
       }
     },
-    renderLabeledInput (children) {
-      const props = this.$props
-      let addonAfter = getComponentFromProp(this, 'addonAfter')
-      let addonBefore = getComponentFromProp(this, 'addonBefore')
-      // Not wrap when there is not addons
-      if ((!addonBefore && !addonAfter)) {
-        return children
-      }
-
-      const wrapperClassName = `${props.prefixCls}-group`
-      const addonClassName = `${wrapperClassName}-addon`
-      addonBefore = addonBefore ? (
-        <span class={addonClassName}>
-          {addonBefore}
-        </span>
-      ) : null
-
-      addonAfter = addonAfter ? (
-        <span class={addonClassName}>
-          {addonAfter}
-        </span>
-      ) : null
-
-      const className = {
-        [`${props.prefixCls}-wrapper`]: true,
-        [wrapperClassName]: (addonBefore || addonAfter),
-      }
-
-      const groupClassName = classNames(`${props.prefixCls}-group-wrapper`, {
-        [`${props.prefixCls}-group-wrapper-sm`]: props.size === 'small',
-        [`${props.prefixCls}-group-wrapper-lg`]: props.size === 'large',
-      })
-      if (addonBefore || addonAfter) {
-        return (
-          <span
-            class={groupClassName}
-            style={getStyle(this)}
-          >
-            <span class={className}>
-              {addonBefore}
-              {children}
-              {addonAfter}
-            </span>
-          </span>
-        )
-      }
-      return (
-        <span class={className}>
-          {addonBefore}
-          {children}
-          {addonAfter}
-        </span>
-      )
+    onChange(e) {
+      this.$emit('change.value', e.target.value);
+      this.$emit('change', e);
+      this.$emit('input', e);
     },
-    renderLabeledIcon (children) {
-      const { prefixCls, size } = this.$props
-      let prefix = getComponentFromProp(this, 'prefix')
-      let suffix = getComponentFromProp(this, 'suffix')
-      if (!prefix && !suffix) {
-        return children
-      }
-
-      prefix = prefix ? (
-        <span class={`${prefixCls}-prefix`}>
-          {prefix}
-        </span>
-      ) : null
-
-      suffix = suffix ? (
-        <span class={`${prefixCls}-suffix`}>
-          {suffix}
-        </span>
-      ) : null
-      const affixWrapperCls = classNames(getClass(this), `${prefixCls}-affix-wrapper`, {
-        [`${prefixCls}-affix-wrapper-sm`]: size === 'small',
-        [`${prefixCls}-affix-wrapper-lg`]: size === 'large',
-      })
-      return (
-        <span
-          class={affixWrapperCls}
-          style={getStyle(this)}
-        >
-          {prefix}
-          {children}
-          {suffix}
-        </span>
-      )
+    handleReset(e) {
+      this.setValue('', () => {
+        this.focus();
+      });
+      resolveOnChange(this.$refs.input, e, this.onChange);
     },
-
-    renderInput () {
+    renderInput(prefixCls) {
       const otherProps = omit(this.$props, [
         'prefixCls',
         'addonBefore',
         'addonAfter',
         'prefix',
         'suffix',
-      ])
-      const { stateValue, getInputClassName, handleKeyDown, handleChange, $listeners } = this
+        'allowClear',
+        'value',
+        'defaultValue',
+        'lazy',
+        'size',
+        'inputType',
+        'className',
+      ]);
+      const { stateValue, handleKeyDown, handleChange, size, disabled } = this;
       const inputProps = {
+        directives: [{ name: 'ant-input' }],
         domProps: {
-          value: stateValue,
+          value: fixControlledValue(stateValue),
         },
         attrs: { ...otherProps, ...this.$attrs },
         on: {
-          ...$listeners,
+          ...getListeners(this),
           keydown: handleKeyDown,
           input: handleChange,
+          change: noop,
         },
-        class: classNames(getInputClassName(), getClass(this)),
+        class: getInputClassName(prefixCls, size, disabled),
         ref: 'input',
+        key: 'ant-input',
+      };
+      return <input {...inputProps} />;
+    },
+    clearPasswordValueAttribute() {
+      // https://github.com/ant-design/ant-design/issues/20541
+      this.removePasswordTimeout = setTimeout(() => {
+        if (
+          this.$refs.input &&
+          this.$refs.input.getAttribute &&
+          this.$refs.input.getAttribute('type') === 'password' &&
+          this.$refs.input.hasAttribute('value')
+        ) {
+          this.$refs.input.removeAttribute('value');
+        }
+      });
+    },
+    handleChange(e) {
+      const { value, composing } = e.target;
+      // https://github.com/vueComponent/ant-design-vue/issues/2203
+      if (((e.isComposing || composing) && this.lazy) || this.stateValue === value) return;
+      this.setValue(value, this.clearPasswordValueAttribute);
+      resolveOnChange(this.$refs.input, e, this.onChange);
+    },
+    handleKeyDown(e) {
+      if (e.keyCode === 13) {
+        this.$emit('pressEnter', e);
       }
-      if ($listeners['change.value']) {
-        inputProps.directives = [{ name: 'ant-input' }]
-      }
-      return this.renderLabeledIcon(
-        <input
-          {...inputProps}
-        />,
-      )
+      this.$emit('keydown', e);
     },
   },
-  render () {
+  render() {
     if (this.$props.type === 'textarea') {
-      const { $listeners } = this
       const textareaProps = {
         props: this.$props,
         attrs: this.$attrs,
         on: {
-          ...$listeners,
-          change: this.handleChange,
+          ...getListeners(this),
+          input: this.handleChange,
           keydown: this.handleKeyDown,
+          change: noop,
         },
-        directives: [
-          {
-            name: 'ant-input',
-          },
-        ],
-      }
-      return <TextArea {...textareaProps} ref='input' />
+      };
+      return <TextArea {...textareaProps} ref="input" />;
     }
-    return this.renderLabeledInput(this.renderInput())
+    const { prefixCls: customizePrefixCls } = this.$props;
+    const { stateValue } = this.$data;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('input', customizePrefixCls);
+    const addonAfter = getComponentFromProp(this, 'addonAfter');
+    const addonBefore = getComponentFromProp(this, 'addonBefore');
+    const suffix = getComponentFromProp(this, 'suffix');
+    const prefix = getComponentFromProp(this, 'prefix');
+    const props = {
+      props: {
+        ...getOptionProps(this),
+        prefixCls,
+        inputType: 'input',
+        value: fixControlledValue(stateValue),
+        element: this.renderInput(prefixCls),
+        handleReset: this.handleReset,
+        addonAfter,
+        addonBefore,
+        suffix,
+        prefix,
+      },
+      on: getListeners(this),
+    };
+    return <ClearableLabeledInput {...props} />;
   },
-}
-
+};

@@ -1,9 +1,11 @@
-import '../../style/index.less'
-import './index.less'
+import '../../style/index.less';
+import './index.less';
 
 // style dependencies
-import '../../radio/style'
-import '../../checkbox/style'
-import '../../dropdown/style'
-import '../../spin/style'
-import '../../pagination/style'
+// deps-lint-skip: menu
+import '../../empty/style';
+import '../../radio/style';
+import '../../checkbox/style';
+import '../../dropdown/style';
+import '../../spin/style';
+import '../../pagination/style';

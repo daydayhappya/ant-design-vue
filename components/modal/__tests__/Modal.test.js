@@ -1,63 +1,70 @@
-import { mount } from '@vue/test-utils'
-import Vue from 'vue'
-import Modal from '..'
+import { mount } from '@vue/test-utils';
+import Modal from '..';
+import mountTest from '../../../tests/shared/mountTest';
+import { asyncExpect } from '@/tests/utils';
 
 const ModalTester = {
   props: ['footer', 'visible'],
   methods: {
-    getContainer () {
-      return this.$refs.container
+    getContainer() {
+      return this.$refs.container;
     },
   },
-  render () {
+  render() {
     const modalProps = {
       props: {
         ...this.$props,
         getContainer: this.getContainer,
       },
-    }
+    };
     return (
       <div>
-        <div ref='container' />
-        <Modal
-          {...modalProps}
-        >
-          Here is content of Modal
-        </Modal>
+        <div ref="container" />
+        <Modal {...modalProps}>Here is content of Modal</Modal>
       </div>
-    )
+    );
   },
-}
+};
 
 describe('Modal', () => {
-  it('render correctly', (done) => {
+  mountTest(Modal);
+  it('render correctly', async () => {
     const wrapper = mount(
       {
-        render () {
-          return <ModalTester visible />
+        render() {
+          return <ModalTester visible />;
         },
-      }
-    )
-    expect(wrapper.html()).toMatchSnapshot()
+      },
+      {
+        sync: false,
+        attachToDocument: true,
+      },
+    );
+    await asyncExpect(() => {
+      expect(wrapper.html()).toMatchSnapshot();
+    });
     // https://github.com/vuejs/vue-test-utils/issues/624
     const wrapper1 = mount(ModalTester, {
       sync: false,
-    })
-    wrapper1.setProps({ visible: true })
-    Vue.nextTick(() => {
-      expect(wrapper1.html()).toMatchSnapshot()
-      done()
-    })
-  })
+      attachToDocument: true,
+    });
+    wrapper1.setProps({ visible: true });
+    await asyncExpect(() => {
+      expect(wrapper1.html()).toMatchSnapshot();
+    });
+  });
 
-  it('render without footer', () => {
+  it('render without footer', async () => {
     const wrapper = mount(
       {
-        render () {
-          return <ModalTester visible footer={null} />
+        render() {
+          return <ModalTester visible footer={null} />;
         },
-      }
-    )
-    expect(wrapper.html()).toMatchSnapshot()
-  })
-})
+      },
+      { attachToDocument: true, sync: true },
+    );
+    await asyncExpect(() => {
+      expect(wrapper.html()).toMatchSnapshot();
+    });
+  });
+});

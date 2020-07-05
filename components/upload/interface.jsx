@@ -1,6 +1,12 @@
-import PropsTypes from '../_util/vue-types'
+import PropsTypes from '../_util/vue-types';
 
-export const UploadFileStatus = PropsTypes.oneOf(['error', 'success', 'done', 'uploading', 'removed'])
+export const UploadFileStatus = PropsTypes.oneOf([
+  'error',
+  'success',
+  'done',
+  'uploading',
+  'removed',
+]);
 
 // export const HttpRequestHeader {
 //   [key: string]: string;
@@ -27,38 +33,41 @@ export const UploadFileStatus = PropsTypes.oneOf(['error', 'success', 'done', 'u
 //   type: PropsTypes.string,
 // }).loose
 
-function UploadFile ({ uid, name }) {
-  if (!uid && uid !== 0) return false
-  if (!['string', 'number'].includes(typeof uid)) return false
-  if (name === '' || typeof name !== 'string') return false
-  return true
+function UploadFile({ uid, name }) {
+  if (!uid && uid !== 0) return false;
+  if (!['string', 'number'].includes(typeof uid)) return false;
+  if (name === '' || typeof name !== 'string') return false;
+  return true;
 }
 
 export const UploadChangeParam = {
   file: PropsTypes.custom(UploadFile),
   fileList: PropsTypes.arrayOf(PropsTypes.custom(UploadFile)),
   event: PropsTypes.object,
-}
+};
 
 export const ShowUploadListInterface = PropsTypes.shape({
   showRemoveIcon: PropsTypes.bool,
   showPreviewIcon: PropsTypes.bool,
-}).loose
+}).loose;
 
 export const UploadLocale = PropsTypes.shape({
   uploading: PropsTypes.string,
   removeFile: PropsTypes.string,
+  downloadFile: PropsTypes.string,
   uploadError: PropsTypes.string,
   previewFile: PropsTypes.string,
-}).loose
+}).loose;
 
 export const UploadProps = {
   type: PropsTypes.oneOf(['drag', 'select']),
   name: PropsTypes.string,
   defaultFileList: PropsTypes.arrayOf(PropsTypes.custom(UploadFile)),
   fileList: PropsTypes.arrayOf(PropsTypes.custom(UploadFile)),
-  action: PropsTypes.string,
+  action: PropsTypes.oneOfType([PropsTypes.string, PropsTypes.func]),
+  directory: PropsTypes.bool,
   data: PropsTypes.oneOfType([PropsTypes.object, PropsTypes.func]),
+  method: PropsTypes.oneOf(['POST', 'PUT', 'post', 'put']),
   headers: PropsTypes.object,
   showUploadList: PropsTypes.oneOfType([PropsTypes.bool, ShowUploadListInterface]),
   multiple: PropsTypes.bool,
@@ -68,21 +77,25 @@ export const UploadProps = {
   listType: PropsTypes.oneOf(['text', 'picture', 'picture-card']),
   // className: PropsTypes.string,
   // onPreview: PropsTypes.func,
-  // onRemove: PropsTypes.func,
+  remove: PropsTypes.func,
   supportServerRender: PropsTypes.bool,
   // style: PropsTypes.object,
   disabled: PropsTypes.bool,
   prefixCls: PropsTypes.string,
   customRequest: PropsTypes.func,
   withCredentials: PropsTypes.bool,
+  openFileDialogOnClick: PropsTypes.bool,
   locale: UploadLocale,
   height: PropsTypes.number,
-}
+  id: PropsTypes.string,
+  previewFile: PropsTypes.func,
+  transformFile: PropsTypes.func,
+};
 
 export const UploadState = {
   fileList: PropsTypes.arrayOf(PropsTypes.custom(UploadFile)),
   dragState: PropsTypes.string,
-}
+};
 
 export const UploadListProps = {
   listType: PropsTypes.oneOf(['text', 'picture', 'picture-card']),
@@ -94,6 +107,8 @@ export const UploadListProps = {
   progressAttr: PropsTypes.object,
   prefixCls: PropsTypes.string,
   showRemoveIcon: PropsTypes.bool,
+  showDownloadIcon: PropsTypes.bool,
   showPreviewIcon: PropsTypes.bool,
   locale: UploadLocale,
-}
+  previewFile: PropsTypes.func,
+};

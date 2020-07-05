@@ -1,7 +1,8 @@
-import '../../style/index.less'
-import './index.less'
+import '../../style/index.less';
+import './index.less';
 
 // style dependencies
-import '../../checkbox/style'
-import '../../button/style'
-import '../../input/style'
+import '../../empty/style';
+import '../../checkbox/style';
+import '../../button/style';
+import '../../input/style';

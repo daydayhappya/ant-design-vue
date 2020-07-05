@@ -1,16 +1,13 @@
-
 export default {
+  name: 'FilterDropdownMenuWrapper',
   methods: {
-    handelClick (e) {
-      this.$emit('click', e)
+    handelClick(e) {
+      e.stopPropagation();
+      //this.$emit('click', e);
     },
   },
-  render () {
-    const { $slots, handelClick } = this
-    return (
-      <div onClick={handelClick}>
-        {$slots.default}
-      </div>
-    )
+  render() {
+    const { $slots, handelClick } = this;
+    return <div onClick={handelClick}>{$slots.default}</div>;
   },
-}
+};

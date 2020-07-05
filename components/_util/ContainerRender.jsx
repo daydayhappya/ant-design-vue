@@ -1,6 +1,4 @@
-
-import Vue from 'vue'
-import PropTypes from './vue-types'
+import PropTypes from './vue-types';
 
 export default {
   props: {
@@ -14,81 +12,87 @@ export default {
     children: PropTypes.func.isRequired,
   },
 
-  mounted () {
+  mounted() {
     if (this.autoMount) {
-      this.renderComponent()
+      this.renderComponent();
     }
   },
 
-  updated () {
+  updated() {
     if (this.autoMount) {
-      this.renderComponent()
+      this.renderComponent();
     }
   },
 
-  beforeDestroy () {
+  beforeDestroy() {
     if (this.autoDestroy) {
-      this.removeContainer()
+      this.removeContainer();
     }
   },
   methods: {
-    removeContainer () {
+    removeContainer() {
       if (this.container) {
-        this._component && this._component.$destroy()
-        this.container.parentNode.removeChild(this.container)
-        this.container = null
+        this._component && this._component.$destroy();
+        this.container.parentNode.removeChild(this.container);
+        this.container = null;
+        this._component = null;
       }
     },
 
-    renderComponent (props = {}, ready) {
-      const { visible, getComponent, forceRender, getContainer, parent } = this
-      const self = this
-      if (visible || parent.$refs._component || forceRender) {
-        let el = this.componentEl
+    renderComponent(props = {}, ready) {
+      const { visible, forceRender, getContainer, parent } = this;
+      const self = this;
+      if (visible || parent._component || parent.$refs._component || forceRender) {
+        let el = this.componentEl;
         if (!this.container) {
-          this.container = getContainer()
-          el = document.createElement('div')
-          this.componentEl = el
-          this.container.appendChild(el)
+          this.container = getContainer();
+          el = document.createElement('div');
+          this.componentEl = el;
+          this.container.appendChild(el);
         }
-
+        // self.getComponent 不要放在 render 中，会因为响应式数据问题导致，多次触发 render
+        const com = { component: self.getComponent(props) };
         if (!this._component) {
-          this._component = new Vue({
+          this._component = new this.$root.constructor({
+            el,
+            parent: self,
             data: {
-              comProps: props,
+              _com: com,
             },
-            parent: self.parent,
-            el: el,
-            mounted () {
+            mounted() {
               this.$nextTick(() => {
                 if (ready) {
-                  ready.call(self)
+                  ready.call(self);
                 }
-              })
+              });
             },
-            updated () {
+            updated() {
               this.$nextTick(() => {
                 if (ready) {
-                  ready.call(self)
+                  ready.call(self);
                 }
-              })
+              });
             },
-            render () {
-              return getComponent(this.comProps)
+            methods: {
+              setComponent(_com) {
+                this.$data._com = _com;
+              },
             },
-          })
+            render() {
+              return this.$data._com.component;
+            },
+          });
         } else {
-          this._component.comProps = props
+          this._component.setComponent(com);
         }
       }
     },
   },
 
-  render () {
+  render() {
     return this.children({
       renderComponent: this.renderComponent,
       removeContainer: this.removeContainer,
-    })
+    });
   },
-}
-
+};

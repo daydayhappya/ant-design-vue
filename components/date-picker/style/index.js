@@ -1,6 +1,8 @@
-import '../../style/index.less'
-import './index.less'
+import '../../style/index.less';
+import './index.less';
 
 // style dependencies
-import '../../input/style'
-import '../../time-picker/style'
+// deps-lint-skip: input
+import '../../input/style';
+import '../../time-picker/style';
+import '../../tag/style';

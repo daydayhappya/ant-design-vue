@@ -1,86 +1,47 @@
-
-import Dialog from './Dialog'
-import ContainerRender from '../_util/ContainerRender'
-import getDialogPropTypes from './IDialogPropTypes'
-import { getStyle, getClass } from '../_util/props-util'
-const IDialogPropTypes = getDialogPropTypes()
+import Dialog from './Dialog';
+import getDialogPropTypes from './IDialogPropTypes';
+import { getListeners } from '../_util/props-util';
+import Portal from '../_util/PortalWrapper';
+const IDialogPropTypes = getDialogPropTypes();
 const DialogWrap = {
+  inheritAttrs: false,
   props: {
     ...IDialogPropTypes,
     visible: IDialogPropTypes.visible.def(false),
   },
-  data () {
-    this.renderComponent = () => {}
 
-    this.removeContainer = () => {}
-    return {}
-  },
-
-  beforeDestroy () {
-    if (this.visible) {
-      this.renderComponent({
-        afterClose: this.removeContainer,
-        visible: false,
-        on: {
-          close () {},
-        },
-      })
-    } else {
-      this.removeContainer()
-    }
-  },
-  methods: {
-    getComponent (extra = {}) {
-      const { $attrs, $listeners, $props, $slots } = this
-      const { on, ...otherProps } = extra
-      const dialogProps = {
-        props: {
-          ...$props,
-          dialogClass: getClass(this),
-          dialogStyle: getStyle(this),
-          ...otherProps,
-        },
-        attrs: $attrs,
-        ref: '_component',
-        key: 'dialog',
-        on: {
-          ...$listeners,
-          ...on,
-        },
-      }
+  render() {
+    const { visible, getContainer, forceRender } = this.$props;
+    const dialogProps = {
+      props: this.$props,
+      attrs: this.$attrs,
+      ref: '_component',
+      key: 'dialog',
+      on: getListeners(this),
+    };
+    // 渲染在当前 dom 里；
+    if (getContainer === false) {
       return (
-        <Dialog {...dialogProps}>{$slots.default}</Dialog>
-      )
-    },
-
-    getContainer2 () {
-      if (this.getContainer) {
-        return this.getContainer()
-      }
-      const container = document.createElement('div')
-      document.body.appendChild(container)
-      return container
-    },
-  },
-
-  render () {
-    const { visible } = this
+        <Dialog
+          {...dialogProps}
+          getOpenCount={() => 2} // 不对 body 做任何操作。。
+        >
+          {this.$slots.default}
+        </Dialog>
+      );
+    }
     return (
-      <ContainerRender
-        parent={this}
+      <Portal
         visible={visible}
-        autoDestroy={false}
-        getComponent={this.getComponent}
-        getContainer={this.getContainer2}
-        children={({ renderComponent, removeContainer }) => {
-          this.renderComponent = renderComponent
-          this.removeContainer = removeContainer
-          return null
+        forceRender={forceRender}
+        getContainer={getContainer}
+        children={childProps => {
+          dialogProps.props = { ...dialogProps.props, ...childProps };
+          return <Dialog {...dialogProps}>{this.$slots.default}</Dialog>;
         }}
       />
-    )
+    );
   },
-}
+};
 
-export default DialogWrap
-
+export default DialogWrap;

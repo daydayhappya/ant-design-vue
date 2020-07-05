@@ -1,116 +1,114 @@
+import PropTypes from '../_util/vue-types';
+import Checkbox from './Checkbox';
+import hasProp from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
 
-import Checkbox from './Checkbox'
-import hasProp from '../_util/props-util'
+function noop() {}
 export default {
   name: 'ACheckboxGroup',
-  props: {
-    prefixCls: {
-      default: 'ant-checkbox-group',
-      type: String,
-    },
-    defaultValue: {
-      default: () => [],
-      type: Array,
-    },
-    value: {
-      default: undefined,
-      type: Array,
-    },
-    options: {
-      default: () => [],
-      type: Array,
-    },
-    disabled: Boolean,
-  },
   model: {
     prop: 'value',
   },
-  provide () {
+  props: {
+    name: PropTypes.string,
+    prefixCls: PropTypes.string,
+    defaultValue: PropTypes.array,
+    value: PropTypes.array,
+    options: PropTypes.array.def([]),
+    disabled: PropTypes.bool,
+  },
+  provide() {
     return {
       checkboxGroupContext: this,
-    }
+    };
   },
-  data () {
-    const { value, defaultValue } = this
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
+    const { value, defaultValue } = this;
     return {
-      sValue: value || defaultValue,
-    }
+      sValue: value || defaultValue || [],
+      registeredValues: [],
+    };
+  },
+  watch: {
+    value(val) {
+      this.sValue = val || [];
+    },
   },
   methods: {
-    handleChange (event) {
-      const target = event.target
-      const { value: targetValue, checked } = target
-      const { sValue } = this
-      let newVal = []
-      if (checked) {
-        newVal = [...sValue, targetValue]
-      } else {
-        newVal = [...sValue]
-        const index = newVal.indexOf(targetValue)
-        index >= 0 && newVal.splice(index, 1)
-      }
-      newVal = [...new Set(newVal)]
-      if (!hasProp(this, 'value')) {
-        this.sValue = newVal
-      }
-      this.$emit('input', newVal)
-      this.$emit('change', newVal)
-    },
-    getOptions () {
-      const { options } = this.$props
+    getOptions() {
+      const { options, $scopedSlots } = this;
       return options.map(option => {
         if (typeof option === 'string') {
           return {
             label: option,
             value: option,
-          }
+          };
         }
-        return option
-      })
+        let label = option.label;
+        if (label === undefined && $scopedSlots.label) {
+          label = $scopedSlots.label(option);
+        }
+        return { ...option, label };
+      });
     },
-    toggleOption (option) {
-      const optionIndex = this.sValue.indexOf(option.value)
-      const value = [...this.sValue]
+    cancelValue(value) {
+      this.registeredValues = this.registeredValues.filter(val => val !== value);
+    },
+
+    registerValue(value) {
+      this.registeredValues = [...this.registeredValues, value];
+    },
+    toggleOption(option) {
+      const { registeredValues } = this;
+      const optionIndex = this.sValue.indexOf(option.value);
+      const value = [...this.sValue];
       if (optionIndex === -1) {
-        value.push(option.value)
+        value.push(option.value);
       } else {
-        value.splice(optionIndex, 1)
+        value.splice(optionIndex, 1);
       }
       if (!hasProp(this, 'value')) {
-        this.sValue = value
+        this.sValue = value;
       }
-      this.$emit('input', value)
-      this.$emit('change', value)
+      const options = this.getOptions();
+      const val = value
+        .filter(val => registeredValues.indexOf(val) !== -1)
+        .sort((a, b) => {
+          const indexA = options.findIndex(opt => opt.value === a);
+          const indexB = options.findIndex(opt => opt.value === b);
+          return indexA - indexB;
+        });
+      this.$emit('input', val);
+      this.$emit('change', val);
     },
   },
-  render () {
-    const { $props: props, $data: state, $slots } = this
-    const { prefixCls, options } = props
-    let children = $slots.default
+  render() {
+    const { $props: props, $data: state, $slots } = this;
+    const { prefixCls: customizePrefixCls, options } = props;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('checkbox', customizePrefixCls);
+
+    let children = $slots.default;
+    const groupPrefixCls = `${prefixCls}-group`;
     if (options && options.length > 0) {
       children = this.getOptions().map(option => (
         <Checkbox
-          key={option.value}
+          prefixCls={prefixCls}
+          key={option.value.toString()}
           disabled={'disabled' in option ? option.disabled : props.disabled}
+          indeterminate={option.indeterminate}
           value={option.value}
           checked={state.sValue.indexOf(option.value) !== -1}
-          onChange={() => this.toggleOption(option)}
-          class={`${prefixCls}-item`}
+          onChange={option.onChange || noop}
+          class={`${groupPrefixCls}-item`}
         >
           {option.label}
         </Checkbox>
-      ))
+      ));
     }
-    return (
-      <div class={prefixCls}>
-        {children}
-      </div>
-    )
+    return <div class={groupPrefixCls}>{children}</div>;
   },
-  watch: {
-    value (val) {
-      this.sValue = val
-    },
-  },
-}
-
+};

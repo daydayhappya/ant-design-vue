@@ -1,52 +1,58 @@
-
-import { Item, itemProps } from '../vc-menu'
-import { getClass, getStyle } from '../_util/props-util'
-import { cloneVNodes } from '../_util/vnode'
-import Tooltip from '../tooltip'
-function noop () {}
+import { Item, itemProps } from '../vc-menu';
+import { getOptionProps, getListeners } from '../_util/props-util';
+import Tooltip from '../tooltip';
+function noop() {}
 export default {
-  props: itemProps,
   name: 'MenuItem',
+  inheritAttrs: false,
+  props: itemProps,
   inject: {
     getInlineCollapsed: { default: () => noop },
+    layoutSiderContext: { default: () => ({}) },
   },
-  isMenuItem: 1,
+  isMenuItem: true,
   methods: {
-    onKeyDown (e) {
-      this.$refs.menuItem.onKeyDown(e)
+    onKeyDown(e) {
+      this.$refs.menuItem.onKeyDown(e);
     },
   },
-  render (h) {
-    const { getInlineCollapsed, $props: props, $slots, $attrs: attrs, $listeners } = this
-    const inlineCollapsed = getInlineCollapsed()
-    const itemProps = {
-      props,
-      attrs,
-      on: $listeners,
-      class: getClass(this),
-      style: getStyle(this),
+  render() {
+    const props = getOptionProps(this);
+    const { level, title, rootPrefixCls } = props;
+    const { getInlineCollapsed, $slots, $attrs: attrs } = this;
+    const inlineCollapsed = getInlineCollapsed();
+    const tooltipProps = {
+      title: title || (level === 1 ? $slots.default : ''),
+    };
+    const siderCollapsed = this.layoutSiderContext.sCollapsed;
+    if (!siderCollapsed && !inlineCollapsed) {
+      tooltipProps.title = null;
+      // Reset `visible` to fix control mode tooltip display not correct
+      // ref: https://github.com/ant-design/ant-design/issues/16742
+      tooltipProps.visible = false;
     }
+
+    const itemProps = {
+      props: {
+        ...props,
+        title,
+      },
+      attrs,
+      on: getListeners(this),
+    };
     const toolTipProps = {
       props: {
+        ...tooltipProps,
         placement: 'right',
-        overlayClassName: `${props.rootPrefixCls}-inline-collapsed-tooltip`,
+        overlayClassName: `${rootPrefixCls}-inline-collapsed-tooltip`,
       },
-      on: {},
-    }
+    };
     return (
-      inlineCollapsed && props.level === 1
-        ? <Tooltip {...toolTipProps}>
-          <template slot='title'>
-            { cloneVNodes($slots.default, true) }
-          </template>
-          <Item {...itemProps} ref='menuItem'>
-            {$slots.default}
-          </Item>
-        </Tooltip>
-        : <Item {...itemProps} ref='menuItem'>
+      <Tooltip {...toolTipProps}>
+        <Item {...itemProps} ref="menuItem">
           {$slots.default}
         </Item>
-    )
+      </Tooltip>
+    );
   },
-}
-
+};

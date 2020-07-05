@@ -1,44 +1,82 @@
-import { mount } from '@vue/test-utils'
-import { asyncExpect } from '@/tests/utils'
-import Tag from '..'
+import { mount } from '@vue/test-utils';
+import { asyncExpect } from '@/tests/utils';
+import Tag from '..';
+import mountTest from '../../../tests/shared/mountTest';
 
 describe('Tag', () => {
-  beforeAll(() => {
-    jest.useFakeTimers()
-  })
-
-  afterAll(() => {
-    jest.useRealTimers()
-  })
-
-  it('should be closable', () => {
-    const onClose = jest.fn()
-    const wrapper = mount({
-      render () {
-        return <Tag closable onClose={onClose} />
+  mountTest(Tag);
+  mountTest(Tag.CheckableTag);
+  it('should be closable', async () => {
+    const onClose = jest.fn();
+    const wrapper = mount(
+      {
+        render() {
+          return <Tag closable onClose={onClose} />;
+        },
       },
-    })
-    expect(wrapper.findAll('.anticon-cross').length).toBe(1)
-    expect(wrapper.findAll('.ant-tag').length).toBe(1)
-    wrapper.find('.anticon-cross').trigger('click')
-    expect(onClose).toBeCalled()
-    jest.runAllTimers()
-    expect(wrapper.findAll('.ant-tag').length).toBe(0)
-  })
+      { sync: false, attachToDocument: true },
+    );
+    await asyncExpect(() => {
+      expect(wrapper.findAll('.anticon-close').length).toBe(1);
+      expect(wrapper.findAll('.ant-tag').filter(w => w.isVisible()).length).toBe(1);
+      wrapper.find('.anticon-close').trigger('click');
+      expect(onClose).toBeCalled();
+    });
+    await asyncExpect(() => {
+      expect(wrapper.findAll('.ant-tag').filter(w => w.isVisible()).length).toBe(0);
+    });
+  });
 
-  it('should not be closed when prevent default', () => {
-    const onClose = (e) => {
-      e.preventDefault()
-    }
-    const wrapper = mount({
-      render () {
-        return <Tag closable onClose={onClose} />
+  it('should not be closed when prevent default', async () => {
+    const onClose = e => {
+      e.preventDefault();
+    };
+    const wrapper = mount(
+      {
+        render() {
+          return <Tag closable onClose={onClose} />;
+        },
       },
-    })
-    expect(wrapper.findAll('.anticon-cross').length).toBe(1)
-    expect(wrapper.findAll('.ant-tag').length).toBe(1)
-    wrapper.find('.anticon-cross').trigger('click')
-    jest.runAllTimers()
-    expect(wrapper.findAll('.ant-tag').length).toBe(1)
-  })
-})
+      { sync: false },
+    );
+    await asyncExpect(() => {
+      expect(wrapper.findAll('.anticon-close').length).toBe(1);
+      expect(wrapper.findAll('.ant-tag').filter(w => w.isVisible()).length).toBe(1);
+      wrapper.find('.anticon-close').trigger('click');
+    });
+    await asyncExpect(() => {
+      expect(wrapper.findAll('.ant-tag').filter(w => w.isVisible()).length).toBe(1);
+    }, 0);
+  });
+  describe('visibility', () => {
+    it('can be controlled by visible with visible as initial value', async () => {
+      const wrapper = mount(Tag, { propsData: { visible: true }, sync: false });
+      await asyncExpect(() => {
+        expect(wrapper.html()).toMatchSnapshot();
+        wrapper.setProps({ visible: false });
+      });
+      await asyncExpect(() => {
+        expect(wrapper.html()).toMatchSnapshot();
+        wrapper.setProps({ visible: true });
+      });
+      await asyncExpect(() => {
+        expect(wrapper.html()).toMatchSnapshot();
+      });
+    });
+
+    it('can be controlled by visible with hidden as initial value', async () => {
+      const wrapper = mount(Tag, { propsData: { visible: false }, sync: false });
+      await asyncExpect(() => {
+        expect(wrapper.html()).toMatchSnapshot();
+        wrapper.setProps({ visible: true });
+      });
+      await asyncExpect(() => {
+        expect(wrapper.html()).toMatchSnapshot();
+        wrapper.setProps({ visible: false });
+      });
+      await asyncExpect(() => {
+        expect(wrapper.html()).toMatchSnapshot();
+      });
+    });
+  });
+});

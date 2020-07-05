@@ -1,17 +1,43 @@
-
-import InkTabBarMixin from './InkTabBarMixin'
-import ScrollableTabBarMixin from './ScrollableTabBarMixin'
-import TabBarMixin from './TabBarMixin'
-import BaseMixin from '../../_util/BaseMixin'
+import InkTabBarNode from './InkTabBarNode';
+import TabBarTabsNode from './TabBarTabsNode';
+import TabBarRootNode from './TabBarRootNode';
+import ScrollableTabBarNode from './ScrollableTabBarNode';
+import SaveRef from './SaveRef';
+import { getListeners } from '../../_util/props-util';
 
 export default {
   name: 'ScrollableInkTabBar',
-  mixins: [TabBarMixin, InkTabBarMixin, ScrollableTabBarMixin, BaseMixin],
-  render (h) {
-    const inkBarNode = this.getInkBarNode()
-    const tabs = this.getTabs(h)
-    const scrollbarNode = this.getScrollBarNode([inkBarNode, tabs])
-    return this.getRootNode(scrollbarNode, h)
+  inheritAttrs: false,
+  props: [
+    'extraContent',
+    'inkBarAnimated',
+    'tabBarGutter',
+    'prefixCls',
+    'navWrapper',
+    'tabBarPosition',
+    'panels',
+    'activeKey',
+    'prevIcon',
+    'nextIcon',
+  ],
+  render() {
+    const props = { ...this.$props };
+    const listeners = getListeners(this);
+    const { default: renderTabBarNode } = this.$scopedSlots;
+    return (
+      <SaveRef
+        children={(saveRef, getRef) => (
+          <TabBarRootNode saveRef={saveRef} {...{ props, on: listeners }}>
+            <ScrollableTabBarNode saveRef={saveRef} getRef={getRef} {...{ props, on: listeners }}>
+              <TabBarTabsNode
+                saveRef={saveRef}
+                {...{ props: { ...props, renderTabBarNode }, on: listeners }}
+              />
+              <InkTabBarNode saveRef={saveRef} getRef={getRef} {...{ props, on: listeners }} />
+            </ScrollableTabBarNode>
+          </TabBarRootNode>
+        )}
+      />
+    );
   },
-}
-
+};

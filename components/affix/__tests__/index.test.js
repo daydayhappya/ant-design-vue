@@ -1,71 +1,123 @@
-import Affix from '..'
-import Button from '../../button'
-import { mount } from '@vue/test-utils'
-const events = {}
+import Affix from '..';
+import Button from '../../button';
+import { mount } from '@vue/test-utils';
+import { spyElementPrototype } from '../../__tests__/util/domHook';
+const events = {};
 
 const AffixMounter = {
-  mounted () {
-    this.$refs.container.scrollTop = 100
+  props: ['offsetBottom', 'offsetTop'],
+  mounted() {
     this.$refs.container.addEventListener = jest.fn().mockImplementation((event, cb) => {
-      events[event] = cb
-    })
+      events[event] = cb;
+    });
   },
   methods: {
-    getTarget () {
-      return this.$refs.container
+    getTarget() {
+      return this.$refs.container;
     },
   },
 
-  render () {
+  render() {
     return (
-      <div
-        style={{
-          height: '100px',
-          overflowY: 'scroll',
-        }}
-        ref='container'
-      >
-        <div
-          className='background'
-          style={{
-            paddingTop: '60px',
-            height: '300px',
-          }}
-        >
+      <div>
+        <div ref="container" class="container">
           <Affix
+            class="fixed"
             target={() => this.$refs.container}
-            ref='affix'
+            ref="affix"
+            {...{ props: this.$props }}
           >
-            <Button type='primary' >
-              Fixed at the top of container
-            </Button>
+            <Button type="primary">Fixed at the top of container</Button>
           </Affix>
         </div>
       </div>
-    )
+    );
   },
-}
+};
 describe('Affix Render', () => {
+  let wrapper;
+  let domMock;
+  const classRect = {
+    container: {
+      top: 1000,
+      bottom: 100,
+    },
+  };
   beforeAll(() => {
-    jest.useFakeTimers()
-  })
-
+    document.body.innerHTML = '';
+    jest.useFakeTimers();
+    domMock = spyElementPrototype(HTMLElement, 'getBoundingClientRect', function mockBounding() {
+      return (
+        classRect[this.className] || {
+          top: 0,
+          bottom: 0,
+        }
+      );
+    });
+  });
   afterAll(() => {
-    jest.useRealTimers()
-  })
-  it('Affix render perfectly', () => {
-    const wrapper = mount(AffixMounter, { attachToDocument: true })
-    jest.runAllTimers()
-
-    wrapper.vm.$refs.affix.$refs.fixedNode.parentNode.getBoundingClientRect = jest.fn(() => {
-      return {
-        bottom: 100, height: 28, left: 0, right: 0, top: -50, width: 195,
-      }
-    })
+    jest.useRealTimers();
+    domMock.mockRestore();
+  });
+  const movePlaceholder = top => {
+    classRect.fixed = {
+      top,
+      bottom: top,
+    };
     events.scroll({
       type: 'scroll',
-    })
-    jest.runAllTimers()
-    expect(wrapper.vm.$refs.affix.affixStyle).not.toBe(null)
-  })
-})
+    });
+    jest.runAllTimers();
+  };
+  it('Anchor render perfectly', () => {
+    wrapper = mount(AffixMounter, { attachToDocument: true });
+    jest.runAllTimers();
+
+    movePlaceholder(0);
+    expect(wrapper.vm.$refs.affix.affixStyle).toBeFalsy();
+
+    // movePlaceholder(100);
+    // expect(wrapper.vm.$refs.affix.affixStyle).toBeTruthy();
+
+    movePlaceholder(0);
+    expect(wrapper.vm.$refs.affix.affixStyle).toBeFalsy();
+  });
+  it('support offsetBottom', () => {
+    wrapper = mount(AffixMounter, {
+      attachToDocument: true,
+      propsData: {
+        offsetBottom: 0,
+      },
+    });
+
+    jest.runAllTimers();
+
+    movePlaceholder(300);
+    //expect(wrapper.vm.$refs.affix.affixStyle).toBeTruthy();
+
+    movePlaceholder(0);
+    expect(wrapper.vm.$refs.affix.affixStyle).toBeFalsy();
+
+    // movePlaceholder(300);
+    // expect(wrapper.vm.$refs.affix.affixStyle).toBeTruthy();
+  });
+
+  // it('updatePosition when offsetTop changed', () => {
+  //   wrapper = mount(AffixMounter, {
+  //     attachToDocument: true,
+  //     propsData: {
+  //       offsetTop: 0,
+  //     },
+  //   });
+
+  //   jest.runAllTimers();
+
+  //   movePlaceholder(-100);
+  //   expect(wrapper.vm.$refs.affix.affixStyle.top).toBe('0px');
+  //   wrapper.setProps({
+  //     offsetTop: 10,
+  //   });
+  //   jest.runAllTimers();
+  //   expect(wrapper.vm.$refs.affix.affixStyle.top).toBe('10px');
+  // });
+});

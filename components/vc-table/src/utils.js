@@ -1,6 +1,5 @@
-import warning from 'warning'
-
-let scrollbarSize
+let scrollbarVerticalSize;
+let scrollbarHorizontalSize;
 
 // Measure scrollbar width for padding body during modal show/hide
 const scrollbarMeasure = {
@@ -8,77 +7,81 @@ const scrollbarMeasure = {
   top: '-9999px',
   width: '50px',
   height: '50px',
-  overflow: 'scroll',
-}
+};
 
-export function measureScrollbar (direction = 'vertical') {
+export const INTERNAL_COL_DEFINE = 'RC_TABLE_INTERNAL_COL_DEFINE';
+
+export function measureScrollbar({ direction = 'vertical', prefixCls }) {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
-    return 0
+    return 0;
   }
-  if (scrollbarSize) {
-    return scrollbarSize
+  const isVertical = direction === 'vertical';
+  if (isVertical && scrollbarVerticalSize) {
+    return scrollbarVerticalSize;
   }
-  const scrollDiv = document.createElement('div')
-  for (const scrollProp in scrollbarMeasure) {
-    if (scrollbarMeasure.hasOwnProperty(scrollProp)) {
-      scrollDiv.style[scrollProp] = scrollbarMeasure[scrollProp]
-    }
+  if (!isVertical && scrollbarHorizontalSize) {
+    return scrollbarHorizontalSize;
   }
-  document.body.appendChild(scrollDiv)
-  let size = 0
-  if (direction === 'vertical') {
-    size = scrollDiv.offsetWidth - scrollDiv.clientWidth
-  } else if (direction === 'horizontal') {
-    size = scrollDiv.offsetHeight - scrollDiv.clientHeight
+  const scrollDiv = document.createElement('div');
+  Object.keys(scrollbarMeasure).forEach(scrollProp => {
+    scrollDiv.style[scrollProp] = scrollbarMeasure[scrollProp];
+  });
+  // apply hide scrollbar className ahead
+  scrollDiv.className = `${prefixCls}-hide-scrollbar scroll-div-append-to-body`;
+
+  // Append related overflow style
+  if (isVertical) {
+    scrollDiv.style.overflowY = 'scroll';
+  } else {
+    scrollDiv.style.overflowX = 'scroll';
+  }
+  document.body.appendChild(scrollDiv);
+  let size = 0;
+  if (isVertical) {
+    size = scrollDiv.offsetWidth - scrollDiv.clientWidth;
+    scrollbarVerticalSize = size;
+  } else {
+    size = scrollDiv.offsetHeight - scrollDiv.clientHeight;
+    scrollbarHorizontalSize = size;
   }
 
-  document.body.removeChild(scrollDiv)
-  scrollbarSize = size
-  return scrollbarSize
+  document.body.removeChild(scrollDiv);
+  return size;
 }
 
-export function debounce (func, wait, immediate) {
-  let timeout
-  function debounceFunc () {
-    const context = this
-    const args = arguments
+export function debounce(func, wait, immediate) {
+  let timeout;
+  function debounceFunc(...args) {
+    const context = this;
     // https://fb.me/react-event-pooling
     if (args[0] && args[0].persist) {
-      args[0].persist()
+      args[0].persist();
     }
     const later = () => {
-      timeout = null
+      timeout = null;
       if (!immediate) {
-        func.apply(context, args)
+        func.apply(context, args);
       }
-    }
-    const callNow = immediate && !timeout
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
+    };
+    const callNow = immediate && !timeout;
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
     if (callNow) {
-      func.apply(context, args)
+      func.apply(context, args);
     }
   }
-  debounceFunc.cancel = function cancel () {
+  debounceFunc.cancel = function cancel() {
     if (timeout) {
-      clearTimeout(timeout)
-      timeout = null
+      clearTimeout(timeout);
+      timeout = null;
     }
-  }
-  return debounceFunc
+  };
+  return debounceFunc;
 }
 
-const warned = {}
-export function warningOnce (condition, format, args) {
-  if (!warned[format]) {
-    warning(condition, format, args)
-    warned[format] = !condition
-  }
-}
-
-export function remove (array, item) {
-  const index = array.indexOf(item)
-  const front = array.slice(0, index)
-  const last = array.slice(index + 1, array.length)
-  return front.concat(last)
+export function remove(array, item) {
+  const index = array.indexOf(item);
+  const front = array.slice(0, index);
+  const last = array.slice(index + 1, array.length);
+  return front.concat(last);
 }

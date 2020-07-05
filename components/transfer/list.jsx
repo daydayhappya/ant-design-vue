@@ -1,27 +1,28 @@
-import classNames from 'classnames'
-// import PureRenderMixin from 'rc-util/lib/PureRenderMixin'
-import PropTypes from '../_util/vue-types'
-import { isValidElement, initDefaultProps } from '../_util/props-util'
-import BaseMixin from '../_util/BaseMixin'
-import getTransitionProps from '../_util/getTransitionProps'
-import Checkbox from '../checkbox'
-import Search from './search'
-import Item from './item'
-import triggerEvent from '../_util/triggerEvent'
+import classNames from 'classnames';
+import PropTypes from '../_util/vue-types';
+import { isValidElement, initDefaultProps, getListeners } from '../_util/props-util';
+import BaseMixin from '../_util/BaseMixin';
+import Checkbox from '../checkbox';
+import Search from './search';
+import defaultRenderList from './renderListBody';
+import triggerEvent from '../_util/triggerEvent';
+import addEventListener from '../vc-util/Dom/addEventListener';
 
-function noop () {
-}
+const defaultRender = () => null;
 
 const TransferItem = {
   key: PropTypes.string.isRequired,
   title: PropTypes.string.isRequired,
   description: PropTypes.string,
   disabled: PropTypes.bool,
-}
+};
 
-function isRenderResultPlainObject (result) {
-  return result && !isValidElement(result) &&
+function isRenderResultPlainObject(result) {
+  return (
+    result &&
+    !isValidElement(result) &&
     Object.prototype.toString.call(result) === '[object Object]'
+  );
 }
 
 export const TransferListProps = {
@@ -42,11 +43,24 @@ export const TransferListProps = {
   itemUnit: PropTypes.string,
   itemsUnit: PropTypes.string,
   body: PropTypes.any,
+  renderList: PropTypes.any,
   footer: PropTypes.any,
-  lazy: PropTypes.oneOfType([
-    PropTypes.bool,
-    PropTypes.object,
-  ]),
+  lazy: PropTypes.oneOfType([PropTypes.bool, PropTypes.object]),
+  disabled: PropTypes.bool,
+  direction: PropTypes.string,
+  showSelectAll: PropTypes.bool,
+};
+
+function renderListNode(h, renderList, props) {
+  let bodyContent = renderList ? renderList(props) : null;
+  const customize = !!bodyContent;
+  if (!customize) {
+    bodyContent = defaultRenderList(h, props);
+  }
+  return {
+    customize,
+    bodyContent,
+  };
 }
 
 export default {
@@ -56,195 +70,268 @@ export default {
     dataSource: [],
     titleText: '',
     showSearch: false,
-    renderItem: noop,
     lazy: {},
   }),
-  data () {
-    this.timer = null
-    this.triggerScrollTimer = null
+  data() {
+    this.timer = null;
+    this.triggerScrollTimer = null;
     return {
-      mounted: false,
-    }
+      filterValue: '',
+    };
   },
-  mounted () {
-    this.timer = window.setTimeout(() => {
-      this.setState({
-        mounted: true,
-      })
-    }, 0)
+  // mounted() {
+  //   this.timer = setTimeout(() => {
+  //     this.setState({
+  //       mounted: true,
+  //     });
+  //   }, 0);
+  //   this.$nextTick(() => {
+  //     if (this.$refs.listContentWrapper) {
+  //       const listContentWrapperDom = this.$refs.listContentWrapper.$el;
+  //       this.scrollEvent = addEventListener(listContentWrapperDom, 'scroll', this.handleScroll);
+  //     }
+  //   });
+  // },
+  beforeDestroy() {
+    clearTimeout(this.triggerScrollTimer);
+    // if (this.scrollEvent) {
+    //   this.scrollEvent.remove();
+    // }
   },
-  beforeDestroy () {
-    clearTimeout(this.timer)
-    clearTimeout(this.triggerScrollTimer)
-  },
-
-  // shouldComponentUpdate (...args: any[]) {
-  //   return PureRenderMixin.shouldComponentUpdate.apply(this, args)
-  // }
-  methods: {
-    getCheckStatus (filteredDataSource) {
-      const { checkedKeys } = this.$props
-      if (checkedKeys.length === 0) {
-        return 'none'
-      } else if (filteredDataSource.every(item => checkedKeys.indexOf(item.key) >= 0)) {
-        return 'all'
+  updated() {
+    this.$nextTick(() => {
+      if (this.scrollEvent) {
+        this.scrollEvent.remove();
       }
-      return 'part'
+      if (this.$refs.listContentWrapper) {
+        const listContentWrapperDom = this.$refs.listContentWrapper.$el;
+        this.scrollEvent = addEventListener(listContentWrapperDom, 'scroll', this.handleScroll);
+      }
+    });
+  },
+  methods: {
+    handleScroll(e) {
+      this.$emit('scroll', e);
     },
-    _handleSelect (selectedItem) {
-      const { checkedKeys } = this.$props
-      const result = checkedKeys.some((key) => key === selectedItem.key)
-      this.handleSelect(selectedItem, !result)
+    getCheckStatus(filteredItems) {
+      const { checkedKeys } = this.$props;
+      if (checkedKeys.length === 0) {
+        return 'none';
+      }
+      if (filteredItems.every(item => checkedKeys.indexOf(item.key) >= 0 || !!item.disabled)) {
+        return 'all';
+      }
+      return 'part';
     },
-    _handleFilter (e) {
-      this.handleSelect(e)
-      if (!e.target.value) {
-        return
+
+    getFilteredItems(dataSource, filterValue) {
+      const filteredItems = [];
+      const filteredRenderItems = [];
+
+      dataSource.forEach(item => {
+        const renderedItem = this.renderItemHtml(item);
+        const { renderedText } = renderedItem;
+
+        // Filter skip
+        if (filterValue && filterValue.trim() && !this.matchFilter(renderedText, item)) {
+          return null;
+        }
+
+        filteredItems.push(item);
+        filteredRenderItems.push(renderedItem);
+      });
+
+      return { filteredItems, filteredRenderItems };
+    },
+
+    getListBody(
+      prefixCls,
+      searchPlaceholder,
+      filterValue,
+      filteredItems,
+      notFoundContent,
+      bodyDom,
+      filteredRenderItems,
+      checkedKeys,
+      renderList,
+      showSearch,
+      disabled,
+    ) {
+      const search = showSearch ? (
+        <div class={`${prefixCls}-body-search-wrapper`}>
+          <Search
+            prefixCls={`${prefixCls}-search`}
+            onChange={this._handleFilter}
+            handleClear={this._handleClear}
+            placeholder={searchPlaceholder}
+            value={filterValue}
+            disabled={disabled}
+          />
+        </div>
+      ) : null;
+
+      let listBody = bodyDom;
+      if (!listBody) {
+        let bodyNode;
+
+        const { bodyContent, customize } = renderListNode(this.$createElement, renderList, {
+          props: { ...this.$props, filteredItems, filteredRenderItems, selectedKeys: checkedKeys },
+          on: getListeners(this),
+        });
+
+        // We should wrap customize list body in a classNamed div to use flex layout.
+        if (customize) {
+          bodyNode = <div class={`${prefixCls}-body-customize-wrapper`}>{bodyContent}</div>;
+        } else {
+          bodyNode = filteredItems.length ? (
+            bodyContent
+          ) : (
+            <div class={`${prefixCls}-body-not-found`}>{notFoundContent}</div>
+          );
+        }
+
+        listBody = (
+          <div
+            class={classNames(
+              showSearch ? `${prefixCls}-body ${prefixCls}-body-with-search` : `${prefixCls}-body`,
+            )}
+          >
+            {search}
+            {bodyNode}
+          </div>
+        );
+      }
+      return listBody;
+    },
+
+    getCheckBox(filteredItems, showSelectAll, disabled) {
+      const checkStatus = this.getCheckStatus(filteredItems);
+      const checkedAll = checkStatus === 'all';
+      const checkAllCheckbox = showSelectAll !== false && (
+        <Checkbox
+          disabled={disabled}
+          checked={checkedAll}
+          indeterminate={checkStatus === 'part'}
+          onChange={() => {
+            // Only select enabled items
+            this.$emit(
+              'itemSelectAll',
+              filteredItems.filter(item => !item.disabled).map(({ key }) => key),
+              !checkedAll,
+            );
+          }}
+        />
+      );
+
+      return checkAllCheckbox;
+    },
+
+    _handleSelect(selectedItem) {
+      const { checkedKeys } = this.$props;
+      const result = checkedKeys.some(key => key === selectedItem.key);
+      this.handleSelect(selectedItem, !result);
+    },
+    _handleFilter(e) {
+      const { handleFilter } = this.$props;
+      const {
+        target: { value: filterValue },
+      } = e;
+      this.setState({ filterValue });
+      handleFilter(e);
+      if (!filterValue) {
+        return;
       }
       // Manually trigger scroll event for lazy search bug
       // https://github.com/ant-design/ant-design/issues/5631
-      this.triggerScrollTimer = window.setTimeout(() => {
-        const listNode = this.$el.querySelectorAll('.ant-transfer-list-content')[0]
+      this.triggerScrollTimer = setTimeout(() => {
+        const transferNode = this.$el;
+        const listNode = transferNode.querySelectorAll('.ant-transfer-list-content')[0];
         if (listNode) {
-          triggerEvent(listNode, 'scroll')
+          triggerEvent(listNode, 'scroll');
         }
-      }, 0)
+      }, 0);
     },
-    _handleClear (e) {
-      this.handleClear(e)
+    _handleClear(e) {
+      this.setState({ filterValue: '' });
+      this.handleClear(e);
     },
-    matchFilter (text, item) {
-      const { filter, filterOption } = this.$props
+    matchFilter(text, item) {
+      const { filterValue } = this.$data;
+      const { filterOption } = this.$props;
       if (filterOption) {
-        return filterOption(filter, item)
+        return filterOption(filterValue, item);
       }
-      return text.indexOf(filter) >= 0
+      return text.indexOf(filterValue) >= 0;
     },
-    renderItemHtml (item) {
-      const { renderItem = noop } = this.$props
-      const renderResult = renderItem(item)
-      const isRenderResultPlain = isRenderResultPlainObject(renderResult)
+    renderItemHtml(item) {
+      const { renderItem = defaultRender } = this.$props;
+      const renderResult = renderItem(item);
+      const isRenderResultPlain = isRenderResultPlainObject(renderResult);
       return {
         renderedText: isRenderResultPlain ? renderResult.value : renderResult,
         renderedEl: isRenderResultPlain ? renderResult.label : renderResult,
-      }
+        item,
+      };
     },
-    filterNull (arr) {
-      return arr.filter((item) => {
-        return item !== null
-      })
+    filterNull(arr) {
+      return arr.filter(item => {
+        return item !== null;
+      });
     },
   },
 
-  render () {
+  render() {
+    const { filterValue } = this.$data;
     const {
-      prefixCls, dataSource, titleText, checkedKeys, lazy,
-      body = noop, footer = noop, showSearch, filter,
-      searchPlaceholder, notFoundContent, itemUnit, itemsUnit,
-    } = this.$props
+      prefixCls,
+      dataSource,
+      titleText,
+      checkedKeys,
+      disabled,
+      body,
+      footer,
+      showSearch,
+      searchPlaceholder,
+      notFoundContent,
+      itemUnit,
+      itemsUnit,
+      renderList,
+      showSelectAll,
+    } = this.$props;
 
     // Custom Layout
-    const footerDom = footer({ ...this.$props })
-    const bodyDom = body({ ...this.$props })
+    const footerDom = footer && footer({ ...this.$props });
+    const bodyDom = body && body({ ...this.$props });
 
     const listCls = classNames(prefixCls, {
       [`${prefixCls}-with-footer`]: !!footerDom,
-    })
+    });
 
-    const filteredDataSource = []
-    const totalDataSource = []
+    // ====================== Get filtered, checked item list ======================
 
-    const showItems = dataSource.map((item) => {
-      const { renderedText, renderedEl } = this.renderItemHtml(item)
-      if (filter && filter.trim() && !this.matchFilter(renderedText, item)) {
-        return null
-      }
+    const { filteredItems, filteredRenderItems } = this.getFilteredItems(dataSource, filterValue);
 
-      // all show items
-      totalDataSource.push(item)
-      if (!item.disabled) {
-        // response to checkAll items
-        filteredDataSource.push(item)
-      }
+    // ================================= List Body =================================
 
-      const checked = checkedKeys.indexOf(item.key) >= 0
-      return (
-        <Item
-          key={item.key}
-          item={item}
-          lazy={lazy}
-          renderedText={renderedText}
-          renderedEl={renderedEl}
-          checked={checked}
-          prefixCls={prefixCls}
-          onClick={this._handleSelect}
-        />
-      )
-    })
+    const unit = dataSource.length > 1 ? itemsUnit : itemUnit;
 
-    const unit = dataSource.length > 1 ? itemsUnit : itemUnit
+    const listBody = this.getListBody(
+      prefixCls,
+      searchPlaceholder,
+      filterValue,
+      filteredItems,
+      notFoundContent,
+      bodyDom,
+      filteredRenderItems,
+      checkedKeys,
+      renderList,
+      showSearch,
+      disabled,
+    );
 
-    const search = showSearch ? (
-      <div class={`${prefixCls}-body-search-wrapper`}>
-        <Search
-          prefixCls={`${prefixCls}-search`}
-          onChange={this.handleFilter}
-          handleClear={this.handleClear}
-          placeholder={searchPlaceholder}
-          value={filter}
-        />
-      </div>
-    ) : null
-    const transitionName = this.mounted ? `${prefixCls}-content-item-highlight` : ''
-    const transitionProps = getTransitionProps(transitionName, {
-      leave: noop,
-    })
-    const listBody = bodyDom || (
-      <div
-        class={showSearch ? `${prefixCls}-body ${prefixCls}-body-with-search` : `${prefixCls}-body`}
-      >
-        {search}
-        <transition-group
-          {...transitionProps}
-          tag='div'
-          class={`${prefixCls}-content-warp`}
-        >
-          {showItems && showItems.length && this.filterNull(showItems).length ? (
-            <ul
-              key='transferList'
-              class={`${prefixCls}-content`}
-              onScroll={(e) => {
-                this.$emit('scroll', e)
-              }}
-            >
-              {showItems}
-            </ul>
-          ) : null}
-        </transition-group>
-        <div class={`${prefixCls}-body-not-found`}>
-          {notFoundContent}
-        </div>
-      </div>
-    )
+    const listFooter = footerDom ? <div class={`${prefixCls}-footer`}>{footerDom}</div> : null;
 
-    const listFooter = footerDom ? (
-      <div class={`${prefixCls}-footer`}>
-        {footerDom}
-      </div>
-    ) : null
-
-    const checkStatus = this.getCheckStatus(filteredDataSource)
-    const checkedAll = checkStatus === 'all'
-    const checkAllCheckbox = (
-      <Checkbox
-        ref='checkbox'
-        checked={checkedAll}
-        indeterminate={checkStatus === 'part'}
-        onChange={() => {
-          this.handleSelectAll(filteredDataSource, checkedAll)
-        }}
-      />
-    )
+    const checkAllCheckbox = this.getCheckBox(filteredItems, showSelectAll, disabled);
 
     return (
       <div class={listCls}>
@@ -252,16 +339,15 @@ export default {
           {checkAllCheckbox}
           <span class={`${prefixCls}-header-selected`}>
             <span>
-              {(checkedKeys.length > 0 ? `${checkedKeys.length}/` : '') + totalDataSource.length} {unit}
+              {(checkedKeys.length > 0 ? `${checkedKeys.length}/` : '') + filteredItems.length}{' '}
+              {unit}
             </span>
-            <span class={`${prefixCls}-header-title`}>
-              {titleText}
-            </span>
+            <span class={`${prefixCls}-header-title`}>{titleText}</span>
           </span>
         </div>
         {listBody}
         {listFooter}
       </div>
-    )
+    );
   },
-}
+};

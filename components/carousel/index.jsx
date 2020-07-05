@@ -1,29 +1,37 @@
-import PropTypes from '../_util/vue-types'
-import debounce from 'lodash/debounce'
-import { initDefaultProps, getComponentFromProp, filterEmpty } from '../_util/props-util'
+import PropTypes from '../_util/vue-types';
+import debounce from 'lodash/debounce';
+import hasProp, {
+  initDefaultProps,
+  getComponentFromProp,
+  filterEmpty,
+  getListeners,
+} from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+import Base from '../base';
+import warning from '../_util/warning';
+import classNames from 'classnames';
 
 // matchMedia polyfill for
 // https://github.com/WickyNilliams/enquire.js/issues/82
 if (typeof window !== 'undefined') {
-  const matchMediaPolyfill = (mediaQuery) => {
+  const matchMediaPolyfill = mediaQuery => {
     return {
       media: mediaQuery,
       matches: false,
-      addListener () {
-      },
-      removeListener () {
-      },
-    }
-  }
-  window.matchMedia = window.matchMedia || matchMediaPolyfill
+      addListener() {},
+      removeListener() {},
+    };
+  };
+  // ref: https://github.com/ant-design/ant-design/issues/18774
+  if (!window.matchMedia) window.matchMedia = matchMediaPolyfill;
 }
 // Use require over import (will be lifted up)
 // make sure matchMedia polyfill run before require('vc-slick')
 // Fix https://github.com/ant-design/ant-design/issues/6560
 // Fix https://github.com/ant-design/ant-design/issues/3308
-const SlickCarousel = require('../vc-slick/src').default
+const SlickCarousel = require('../vc-slick/src').default;
 
-export const CarouselEffect = PropTypes.oneOf(['scrollx', 'fade'])
+export const CarouselEffect = PropTypes.oneOf(['scrollx', 'fade']);
 // Carousel
 export const CarouselProps = {
   effect: CarouselEffect,
@@ -65,78 +73,103 @@ export const CarouselProps = {
   variableWidth: PropTypes.bool,
   useCSS: PropTypes.bool,
   slickGoTo: PropTypes.number,
-}
+  responsive: PropTypes.array,
+  dotPosition: PropTypes.oneOf(['top', 'bottom', 'left', 'right']),
+};
 
-export default {
+const Carousel = {
   name: 'ACarousel',
   props: initDefaultProps(CarouselProps, {
     dots: true,
     arrows: false,
-    prefixCls: 'ant-carousel',
     draggable: false,
   }),
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
 
-  // innerSlider: any;
-
-  // private slick: any;
-
-  beforeMount () {
+  beforeMount() {
     this.onWindowResized = debounce(this.onWindowResized, 500, {
       leading: false,
-    })
+    });
   },
 
-  mounted () {
-    const { autoplay } = this
+  mounted() {
+    if (hasProp(this, 'vertical')) {
+      warning(
+        !this.vertical,
+        'Carousel',
+        '`vertical` is deprecated, please use `dotPosition` instead.',
+      );
+    }
+    const { autoplay } = this;
     if (autoplay) {
-      window.addEventListener('resize', this.onWindowResized)
+      window.addEventListener('resize', this.onWindowResized);
     }
     // https://github.com/ant-design/ant-design/issues/7191
-    this.innerSlider = this.$refs.slick && this.$refs.slick.innerSlider
+    this.innerSlider = this.$refs.slick && this.$refs.slick.innerSlider;
   },
-
-  beforeDestroy () {
-    const { autoplay } = this
+  beforeDestroy() {
+    const { autoplay } = this;
     if (autoplay) {
-      window.removeEventListener('resize', this.onWindowResized)
-      this.onWindowResized.cancel()
+      window.removeEventListener('resize', this.onWindowResized);
+      this.onWindowResized.cancel();
     }
   },
   methods: {
-    onWindowResized () {
+    getDotPosition() {
+      if (this.dotPosition) {
+        return this.dotPosition;
+      }
+      if (hasProp(this, 'vertical')) {
+        return this.vertical ? 'right' : 'bottom';
+      }
+      return 'bottom';
+    },
+    onWindowResized() {
       // Fix https://github.com/ant-design/ant-design/issues/2550
-      const { autoplay } = this
-      if (autoplay && this.$refs.slick && this.$refs.slick.innerSlider && this.$refs.slick.innerSlider.autoPlay) {
-        this.$refs.slick.innerSlider.autoPlay()
+      const { autoplay } = this;
+      if (
+        autoplay &&
+        this.$refs.slick &&
+        this.$refs.slick.innerSlider &&
+        this.$refs.slick.innerSlider.autoPlay
+      ) {
+        this.$refs.slick.innerSlider.autoPlay();
       }
     },
 
-    next () {
-      this.$refs.slick.slickNext()
+    next() {
+      this.$refs.slick.slickNext();
     },
 
-    prev () {
-      this.$refs.slick.slickPrev()
+    prev() {
+      this.$refs.slick.slickPrev();
     },
 
-    goTo (slide) {
-      this.$refs.slick.slickGoTo(slide)
+    goTo(slide, dontAnimate = false) {
+      this.$refs.slick.slickGoTo(slide, dontAnimate);
     },
   },
 
-  render () {
-    const props = {
-      ...this.$props,
-    }
-    const { $slots, $listeners } = this
+  render() {
+    const props = { ...this.$props };
+    const { $slots } = this;
 
     if (props.effect === 'fade') {
-      props.fade = true
+      props.fade = true;
     }
 
-    let className = props.prefixCls
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    let className = getPrefixCls('carousel', props.prefixCls);
+    const dotsClass = 'slick-dots';
+    const dotPosition = this.getDotPosition();
+    props.vertical = dotPosition === 'left' || dotPosition === 'right';
+    props.dotsClass = classNames(`${dotsClass}`, `${dotsClass}-${dotPosition || 'bottom'}`, {
+      [`${props.dotsClass}`]: !!props.dotsClass,
+    });
     if (props.vertical) {
-      className = `${className} ${className}-vertical`
+      className = `${className} ${className}-vertical`;
     }
     const SlickCarouselProps = {
       props: {
@@ -144,16 +177,24 @@ export default {
         nextArrow: getComponentFromProp(this, 'nextArrow'),
         prevArrow: getComponentFromProp(this, 'prevArrow'),
       },
-      on: $listeners,
+      on: getListeners(this),
       scopedSlots: this.$scopedSlots,
-    }
-
+    };
+    const children = filterEmpty($slots.default);
     return (
       <div class={className}>
-        <SlickCarousel ref='slick' {...SlickCarouselProps}>
-          {filterEmpty($slots.default)}
+        <SlickCarousel ref="slick" {...SlickCarouselProps}>
+          {children}
         </SlickCarousel>
       </div>
-    )
+    );
   },
-}
+};
+
+/* istanbul ignore next */
+Carousel.install = function(Vue) {
+  Vue.use(Base);
+  Vue.component(Carousel.name, Carousel);
+};
+
+export default Carousel;

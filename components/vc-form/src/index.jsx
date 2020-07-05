@@ -1,9 +1,10 @@
 // export this package's api
-import createForm from './createForm'
-import createFormField from './createFormField'
-import formShape from './propTypes'
-import Vue from 'vue'
-import antRefDirective from '../../_util/antRefDirective'
-Vue.use(antRefDirective)
+import createForm from './createForm';
+import createFormField from './createFormField';
+import formShape from './propTypes';
+import Vue from 'vue';
+import ref from 'vue-ref';
 
-export { createForm, createFormField, formShape }
+Vue.use(ref, { name: 'ant-ref' });
+
+export { createFormField, formShape, createForm };

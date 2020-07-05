@@ -1,7 +1,8 @@
-import PropTypes from '../../_util/vue-types'
-import addEventListener from '../../_util/Dom/addEventListener'
-import BaseMixin from '../../_util/BaseMixin'
-import { getOptionProps } from '../../_util/props-util'
+import classNames from 'classnames';
+import PropTypes from '../../_util/vue-types';
+import BaseMixin from '../../_util/BaseMixin';
+import { getOptionProps, getListeners } from '../../_util/props-util';
+import addEventListener from '../../vc-util/Dom/addEventListener';
 
 export default {
   name: 'Handle',
@@ -15,95 +16,113 @@ export default {
     max: PropTypes.number,
     value: PropTypes.number,
     tabIndex: PropTypes.number,
+    className: PropTypes.string,
+    reverse: PropTypes.bool,
     // handleFocus: PropTypes.func.def(noop),
     // handleBlur: PropTypes.func.def(noop),
   },
-  data () {
+  data() {
     return {
       clickFocused: false,
-    }
+    };
   },
-  mounted () {
-    this.$nextTick(() => {
-      // mouseup won't trigger if mouse moved out of handle,
-      // so we listen on document here.
-      this.onMouseUpListener = addEventListener(document, 'mouseup', this.handleMouseUp)
-    })
+  mounted() {
+    // mouseup won't trigger if mouse moved out of handle
+    // so we listen on document here.
+    this.onMouseUpListener = addEventListener(document, 'mouseup', this.handleMouseUp);
   },
-  beforeDestroy () {
+  beforeDestroy() {
     if (this.onMouseUpListener) {
-      this.onMouseUpListener.remove()
+      this.onMouseUpListener.remove();
     }
   },
   methods: {
-    setClickFocus (focused) {
-      this.setState({ clickFocused: focused })
+    setClickFocus(focused) {
+      this.setState({ clickFocused: focused });
     },
-    handleMouseUp () {
+    handleMouseUp() {
       if (document.activeElement === this.$refs.handle) {
-        this.setClickFocus(true)
+        this.setClickFocus(true);
       }
     },
-    handleBlur (e) {
-      this.setClickFocus(false)
+    handleBlur(e) {
+      this.setClickFocus(false);
+      this.__emit('blur', e);
     },
-    handleKeyDown () {
-      this.setClickFocus(false)
+    handleKeyDown() {
+      this.setClickFocus(false);
     },
-    clickFocus () {
-      this.setClickFocus(true)
-      this.focus()
+    clickFocus() {
+      this.setClickFocus(true);
+      this.focus();
     },
-    focus () {
-      this.$refs.handle.focus()
+    focus() {
+      this.$refs.handle.focus();
     },
-    blur () {
-      this.$refs.handle.blur()
+    blur() {
+      this.$refs.handle.blur();
+    },
+    // when click can not focus in vue, use mousedown trigger focus
+    handleMousedown(e) {
+      this.focus();
+      this.__emit('mousedown', e);
     },
   },
-  render () {
+  render() {
     const {
-      prefixCls, vertical, offset, disabled, min, max, value, tabIndex,
-    } = getOptionProps(this)
-
-    const className = {
-      [`${prefixCls}-handle`]: true,
+      prefixCls,
+      vertical,
+      reverse,
+      offset,
+      disabled,
+      min,
+      max,
+      value,
+      tabIndex,
+    } = getOptionProps(this);
+    const className = classNames(this.$props.className, {
       [`${prefixCls}-handle-click-focused`]: this.clickFocused,
+    });
+
+    const positionStyle = vertical
+      ? {
+          [reverse ? 'top' : 'bottom']: `${offset}%`,
+          [reverse ? 'bottom' : 'top']: 'auto',
+          transform: `translateY(+50%)`,
+        }
+      : {
+          [reverse ? 'right' : 'left']: `${offset}%`,
+          [reverse ? 'left' : 'right']: 'auto',
+          transform: `translateX(${reverse ? '+' : '-'}50%)`,
+        };
+
+    const ariaProps = {
+      'aria-valuemin': min,
+      'aria-valuemax': max,
+      'aria-valuenow': value,
+      'aria-disabled': !!disabled,
+    };
+    let _tabIndex = tabIndex || 0;
+    if (disabled || tabIndex === null) {
+      _tabIndex = null;
     }
 
-    const postionStyle = vertical ? { bottom: `${offset}%` } : { left: `${offset}%` }
-    const elStyle = {
-      ...postionStyle,
-    }
-    let ariaProps = {}
-    if (value !== undefined) {
-      ariaProps = {
-        ...ariaProps,
-        'aria-valuemin': min,
-        'aria-valuemax': max,
-        'aria-valuenow': value,
-        'aria-disabled': !!disabled,
-      }
-    }
     const handleProps = {
       attrs: {
         role: 'slider',
-        tabIndex: disabled ? null : (tabIndex || 0),
+        tabIndex: _tabIndex,
         ...ariaProps,
       },
       class: className,
       on: {
-        ...this.$listeners,
+        ...getListeners(this),
         blur: this.handleBlur,
         keydown: this.handleKeyDown,
+        mousedown: this.handleMousedown,
       },
       ref: 'handle',
-      style: elStyle,
-    }
-    return (
-      <div
-        {...handleProps}
-      />
-    )
+      style: positionStyle,
+    };
+    return <div {...handleProps} />;
   },
-}
+};

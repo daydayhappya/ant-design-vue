@@ -1,4 +1,6 @@
-import '../../style/index.less'
-import './index.less'
+import '../../style/index.less';
+import './index.less';
 
-import '../../select/style'
+// style dependencies
+import '../../select/style';
+import '../../input/style';

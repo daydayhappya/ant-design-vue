@@ -1,22 +1,23 @@
-
-import PropTypes from '../../../_util/vue-types'
-import BaseMixin from '../../../_util/BaseMixin'
-const ROW = 4
-const COL = 3
-function noop () {}
-function goYear (direction) {
-  const value = this.sValue.clone()
-  value.add(direction, 'year')
+import PropTypes from '../../../_util/vue-types';
+import BaseMixin from '../../../_util/BaseMixin';
+import { getListeners } from '../../../_util/props-util';
+const ROW = 4;
+const COL = 3;
+function noop() {}
+function goYear(direction) {
+  const value = this.sValue.clone();
+  value.add(direction, 'year');
   this.setState({
     sValue: value,
-  })
+  });
 }
 
-function chooseYear (year) {
-  const value = this.sValue.clone()
-  value.year(year)
-  value.month(this.sValue.month())
-  this.__emit('select', value)
+function chooseYear(year) {
+  const value = this.sValue.clone();
+  value.year(year);
+  value.month(this.sValue.month());
+  this.sValue = value;
+  this.__emit('select', value);
 }
 
 export default {
@@ -26,47 +27,53 @@ export default {
     value: PropTypes.object,
     defaultValue: PropTypes.object,
     locale: PropTypes.object,
+    renderFooter: PropTypes.func,
   },
-  data () {
-    this.nextDecade = goYear.bind(this, 10)
-    this.previousDecade = goYear.bind(this, -10)
+  data() {
+    this.nextDecade = goYear.bind(this, 10);
+    this.previousDecade = goYear.bind(this, -10);
     return {
       sValue: this.value || this.defaultValue,
-    }
+    };
+  },
+  watch: {
+    value(val) {
+      this.sValue = val;
+    },
   },
   methods: {
-    years () {
-      const value = this.sValue
-      const currentYear = value.year()
-      const startYear = parseInt(currentYear / 10, 10) * 10
-      const previousYear = startYear - 1
-      const years = []
-      let index = 0
+    years() {
+      const value = this.sValue;
+      const currentYear = value.year();
+      const startYear = parseInt(currentYear / 10, 10) * 10;
+      const previousYear = startYear - 1;
+      const years = [];
+      let index = 0;
       for (let rowIndex = 0; rowIndex < ROW; rowIndex++) {
-        years[rowIndex] = []
+        years[rowIndex] = [];
         for (let colIndex = 0; colIndex < COL; colIndex++) {
-          const year = previousYear + index
-          const content = String(year)
+          const year = previousYear + index;
+          const content = String(year);
           years[rowIndex][colIndex] = {
             content,
             year,
             title: content,
-          }
-          index++
+          };
+          index++;
         }
       }
-      return years
+      return years;
     },
   },
 
-  render () {
-    const { sValue: value, locale, $listeners = {}} = this
-    const decadePanelShow = $listeners.decadePanelShow || noop
-    const years = this.years()
-    const currentYear = value.year()
-    const startYear = parseInt(currentYear / 10, 10) * 10
-    const endYear = startYear + 9
-    const prefixCls = `${this.rootPrefixCls}-year-panel`
+  render() {
+    const { sValue: value, locale, renderFooter } = this;
+    const decadePanelShow = getListeners(this).decadePanelShow || noop;
+    const years = this.years();
+    const currentYear = value.year();
+    const startYear = parseInt(currentYear / 10, 10) * 10;
+    const endYear = startYear + 9;
+    const prefixCls = `${this.rootPrefixCls}-year-panel`;
 
     const yeasEls = years.map((row, index) => {
       const tds = row.map(yearData => {
@@ -75,46 +82,47 @@ export default {
           [`${prefixCls}-selected-cell`]: yearData.year === currentYear,
           [`${prefixCls}-last-decade-cell`]: yearData.year < startYear,
           [`${prefixCls}-next-decade-cell`]: yearData.year > endYear,
-        }
-        let clickHandler = noop
+        };
+        let clickHandler = noop;
         if (yearData.year < startYear) {
-          clickHandler = this.previousDecade
+          clickHandler = this.previousDecade;
         } else if (yearData.year > endYear) {
-          clickHandler = this.nextDecade
+          clickHandler = this.nextDecade;
         } else {
-          clickHandler = chooseYear.bind(this, yearData.year)
+          clickHandler = chooseYear.bind(this, yearData.year);
         }
         return (
           <td
-            role='gridcell'
+            role="gridcell"
             title={yearData.title}
             key={yearData.content}
             onClick={clickHandler}
             class={classNameMap}
           >
-            <a
-              class={`${prefixCls}-year`}
-            >
-              {yearData.content}
-            </a>
-          </td>)
-      })
-      return (<tr key={index} role='row'>{tds}</tr>)
-    })
-
+            <a class={`${prefixCls}-year`}>{yearData.content}</a>
+          </td>
+        );
+      });
+      return (
+        <tr key={index} role="row">
+          {tds}
+        </tr>
+      );
+    });
+    const footer = renderFooter && renderFooter('year');
     return (
       <div class={prefixCls}>
         <div>
           <div class={`${prefixCls}-header`}>
             <a
               class={`${prefixCls}-prev-decade-btn`}
-              role='button'
+              role="button"
               onClick={this.previousDecade}
               title={locale.previousDecade}
             />
             <a
               class={`${prefixCls}-decade-select`}
-              role='button'
+              role="button"
               onClick={decadePanelShow}
               title={locale.decadeSelect}
             >
@@ -126,20 +134,19 @@ export default {
 
             <a
               class={`${prefixCls}-next-decade-btn`}
-              role='button'
+              role="button"
               onClick={this.nextDecade}
               title={locale.nextDecade}
             />
           </div>
           <div class={`${prefixCls}-body`}>
-            <table class={`${prefixCls}-table`} cellSpacing='0' role='grid'>
-              <tbody class={`${prefixCls}-tbody`}>
-                {yeasEls}
-              </tbody>
+            <table class={`${prefixCls}-table`} cellSpacing="0" role="grid">
+              <tbody class={`${prefixCls}-tbody`}>{yeasEls}</tbody>
             </table>
           </div>
+          {footer && <div class={`${prefixCls}-footer`}>{footer}</div>}
         </div>
-      </div>)
+      </div>
+    );
   },
-}
-
+};

@@ -1,3 +1,7 @@
-// base rc-slider e7af5aa6e252a16cc97d9627b28e19e58b519bd2
-import Slider from './src/'
-export default Slider
+// base rc-slider 8.7.1
+import Vue from 'vue';
+import ref from 'vue-ref';
+import Slider from './src/';
+
+Vue.use(ref, { name: 'ant-ref' });
+export default Slider;

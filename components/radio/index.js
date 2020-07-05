@@ -1,19 +1,18 @@
-import Radio from './Radio'
-import Group from './Group'
+import Radio from './Radio';
+import Group from './Group';
+import Button from './RadioButton';
+import Base from '../base';
 
-const Button = {
-  extends: Radio,
-  name: 'ARadioButton',
-  props: {
-    ...Radio.props,
-    prefixCls: {
-      default: 'ant-radio-button',
-      type: String,
-    },
-  },
-}
-Radio.Group = Group
-Radio.Button = Button
-export { Button, Group }
-export default Radio
+Radio.Group = Group;
+Radio.Button = Button;
 
+/* istanbul ignore next */
+Radio.install = function(Vue) {
+  Vue.use(Base);
+  Vue.component(Radio.name, Radio);
+  Vue.component(Radio.Group.name, Radio.Group);
+  Vue.component(Radio.Button.name, Radio.Button);
+};
+
+export { Button, Group };
+export default Radio;

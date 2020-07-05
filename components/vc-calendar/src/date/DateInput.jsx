@@ -1,7 +1,13 @@
+import PropTypes from '../../../_util/vue-types';
+import BaseMixin from '../../../_util/BaseMixin';
+import { getComponentFromProp } from '../../../_util/props-util';
+import moment from 'moment';
+import { formatDate } from '../util';
+import KeyCode from '../../../_util/KeyCode';
 
-import PropTypes from '../../../_util/vue-types'
-import BaseMixin from '../../../_util/BaseMixin'
-import moment from 'moment'
+let cachedSelectionStart;
+let cachedSelectionEnd;
+let dateInputInstance;
 
 const DateInput = {
   mixins: [BaseMixin],
@@ -10,7 +16,7 @@ const DateInput = {
     timePicker: PropTypes.object,
     value: PropTypes.object,
     disabledTime: PropTypes.any,
-    format: PropTypes.string,
+    format: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string), PropTypes.func]),
     locale: PropTypes.object,
     disabledDate: PropTypes.func,
     // onChange: PropTypes.func,
@@ -18,130 +24,199 @@ const DateInput = {
     placeholder: PropTypes.string,
     // onSelect: PropTypes.func,
     selectedValue: PropTypes.object,
+    clearIcon: PropTypes.any,
+    inputMode: PropTypes.string,
+    inputReadOnly: PropTypes.bool,
   },
 
-  data () {
-    const selectedValue = this.selectedValue
+  data() {
+    const selectedValue = this.selectedValue;
     return {
-      str: selectedValue && selectedValue.format(this.format) || '',
+      str: formatDate(selectedValue, this.format),
       invalid: false,
-    }
+      hasFocus: false,
+    };
   },
   watch: {
-    selectedValue () {
-      this.updateState()
+    selectedValue() {
+      this.setState();
     },
-    format () {
-      this.updateState()
+    format() {
+      this.setState();
     },
   },
 
-  updated () {
+  updated() {
     this.$nextTick(() => {
-      if (!this.invalid) {
-        this.$refs.dateInputInstance.setSelectionRange(this.cachedSelectionStart, this.cachedSelectionEnd)
+      if (
+        dateInputInstance &&
+        this.$data.hasFocus &&
+        !this.invalid &&
+        !(cachedSelectionStart === 0 && cachedSelectionEnd === 0)
+      ) {
+        dateInputInstance.setSelectionRange(cachedSelectionStart, cachedSelectionEnd);
       }
-    })
+    });
+  },
+  getInstance() {
+    return dateInputInstance;
   },
   methods: {
-    updateState () {
-      this.cachedSelectionStart = this.$refs.dateInputInstance.selectionStart
-      this.cachedSelectionEnd = this.$refs.dateInputInstance.selectionEnd
-      // when popup show, click body will call this, bug!
-      const selectedValue = this.selectedValue
-      this.setState({
-        str: selectedValue && selectedValue.format(this.format) || '',
-        invalid: false,
-      })
-    },
-    onInputChange (event) {
-      const str = event.target.value
-      this.setState({
-        str,
-      })
-      let value
-      const { disabledDate, format } = this
-      if (str) {
-        const parsed = moment(str, format, true)
-        if (!parsed.isValid()) {
-          this.setState({
-            invalid: true,
-          })
-          return
-        }
-        value = this.value.clone()
-        value
-          .year(parsed.year())
-          .month(parsed.month())
-          .date(parsed.date())
-          .hour(parsed.hour())
-          .minute(parsed.minute())
-          .second(parsed.second())
-
-        if (value && (!disabledDate || !disabledDate(value))) {
-          const originalValue = this.selectedValue
-          if (originalValue && value) {
-            if (!originalValue.isSame(value)) {
-              this.__emit('change', value)
-            }
-          } else if (originalValue !== value) {
-            this.__emit('change', value)
-          }
-        } else {
-          this.setState({
-            invalid: true,
-          })
-          return
-        }
-      } else {
-        this.__emit('change', null)
+    getDerivedStateFromProps(nextProps, state) {
+      let newState = {};
+      if (dateInputInstance) {
+        cachedSelectionStart = dateInputInstance.selectionStart;
+        cachedSelectionEnd = dateInputInstance.selectionEnd;
       }
-      this.setState({
-        invalid: false,
-      })
+      // when popup show, click body will call this, bug!
+      const selectedValue = nextProps.selectedValue;
+      if (!state.hasFocus) {
+        newState = {
+          str: formatDate(selectedValue, this.format),
+          invalid: false,
+        };
+      }
+      return newState;
     },
-
-    onClear () {
+    onClear() {
       this.setState({
         str: '',
-      })
-      this.__emit('clear', null)
+      });
+      this.__emit('clear', null);
     },
+    onInputChange(e) {
+      const { value: str, composing } = e.target;
+      const { str: oldStr = '' } = this;
+      if (e.isComposing || composing || oldStr === str) return;
 
-    getRootDOMNode () {
-      return this.$el
-    },
+      const { disabledDate, format, selectedValue } = this.$props;
 
-    focus () {
-      if (this.$refs.dateInputInstance) {
-        this.$refs.dateInputInstance.focus()
+      // 没有内容，合法并直接退出
+      if (!str) {
+        this.__emit('change', null);
+        this.setState({
+          invalid: false,
+          str,
+        });
+        return;
+      }
+
+      // 不合法直接退出
+      const parsed = moment(str, format, true);
+      if (!parsed.isValid()) {
+        this.setState({
+          invalid: true,
+          str,
+        });
+        return;
+      }
+      const value = this.value.clone();
+      value
+        .year(parsed.year())
+        .month(parsed.month())
+        .date(parsed.date())
+        .hour(parsed.hour())
+        .minute(parsed.minute())
+        .second(parsed.second());
+
+      if (!value || (disabledDate && disabledDate(value))) {
+        this.setState({
+          invalid: true,
+          str,
+        });
+        return;
+      }
+
+      if (selectedValue !== value || (selectedValue && value && !selectedValue.isSame(value))) {
+        this.setState({
+          invalid: false,
+          str,
+        });
+        this.__emit('change', value);
       }
     },
+    onFocus() {
+      this.setState({ hasFocus: true });
+    },
+    onBlur() {
+      this.setState((prevState, prevProps) => ({
+        hasFocus: false,
+        str: formatDate(prevProps.value, prevProps.format),
+      }));
+    },
+    onKeyDown(event) {
+      const { keyCode } = event;
+      const { value, disabledDate } = this.$props;
+      if (keyCode === KeyCode.ENTER) {
+        const validateDate = !disabledDate || !disabledDate(value);
+        if (validateDate) {
+          this.__emit('select', value.clone());
+        }
+        event.preventDefault();
+      }
+    },
+    getRootDOMNode() {
+      return this.$el;
+    },
+    focus() {
+      if (dateInputInstance) {
+        dateInputInstance.focus();
+      }
+    },
+    saveDateInput(dateInput) {
+      dateInputInstance = dateInput;
+    },
   },
 
-  render () {
-    const { invalid, str, locale, prefixCls, placeholder, disabled, showClear } = this
-    const invalidClass = invalid ? `${prefixCls}-input-invalid` : ''
-    return (<div class={`${prefixCls}-input-wrap`}>
-      <div class={`${prefixCls}-date-input-wrap`}>
-        <input
-          ref='dateInputInstance'
-          class={`${prefixCls}-input ${invalidClass}`}
-          value={str}
-          disabled={disabled}
-          placeholder={placeholder}
-          onInput={this.onInputChange}
-        />
+  render() {
+    const {
+      invalid,
+      str,
+      locale,
+      prefixCls,
+      placeholder,
+      disabled,
+      showClear,
+      inputMode,
+      inputReadOnly,
+    } = this;
+    const clearIcon = getComponentFromProp(this, 'clearIcon');
+    const invalidClass = invalid ? `${prefixCls}-input-invalid` : '';
+    return (
+      <div class={`${prefixCls}-input-wrap`}>
+        <div class={`${prefixCls}-date-input-wrap`}>
+          <input
+            {...{
+              directives: [
+                {
+                  name: 'ant-ref',
+                  value: this.saveDateInput,
+                },
+                {
+                  name: 'ant-input',
+                },
+              ],
+            }}
+            class={`${prefixCls}-input ${invalidClass}`}
+            value={str}
+            disabled={disabled}
+            placeholder={placeholder}
+            onInput={this.onInputChange}
+            onKeydown={this.onKeyDown}
+            onFocus={this.onFocus}
+            onBlur={this.onBlur}
+            inputMode={inputMode}
+            readOnly={inputReadOnly}
+          />
+        </div>
+        {showClear ? (
+          <a role="button" title={locale.clear} onClick={this.onClear}>
+            {clearIcon || <span class={`${prefixCls}-clear-btn`} />}
+          </a>
+        ) : null}
       </div>
-      {showClear ? <a
-        class={`${prefixCls}-clear-btn`}
-        role='button'
-        title={locale.clear}
-        onClick={this.onClear}
-      /> : null}
-    </div>)
+    );
   },
-}
+};
 
-export default DateInput
-
+export default DateInput;

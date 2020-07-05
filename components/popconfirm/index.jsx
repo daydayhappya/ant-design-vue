@@ -1,30 +1,35 @@
+import omit from 'omit.js';
+import Tooltip from '../tooltip';
+import abstractTooltipProps from '../tooltip/abstractTooltipProps';
+import PropTypes from '../_util/vue-types';
+import { getOptionProps, hasProp, getComponentFromProp, mergeProps } from '../_util/props-util';
+import BaseMixin from '../_util/BaseMixin';
+import buttonTypes from '../button/buttonTypes';
+import Icon from '../icon';
+import Button from '../button';
+import LocaleReceiver from '../locale-provider/LocaleReceiver';
+import defaultLocale from '../locale-provider/default';
+import { ConfigConsumerProps } from '../config-provider';
+import Base from '../base';
 
-import omit from 'omit.js'
-import Tooltip from '../tooltip'
-import abstractTooltipProps from '../tooltip/abstractTooltipProps'
-import PropTypes from '../_util/vue-types'
-import { getOptionProps, hasProp, getComponentFromProp } from '../_util/props-util'
-import BaseMixin from '../_util/BaseMixin'
-import buttonTypes from '../button/buttonTypes'
-import Icon from '../icon'
-import Button from '../button'
-import LocaleReceiver from '../locale-provider/LocaleReceiver'
-import defaultLocale from '../locale-provider/default'
-
-const tooltipProps = abstractTooltipProps()
-const btnProps = buttonTypes()
-export default {
+const tooltipProps = abstractTooltipProps();
+const btnProps = buttonTypes();
+const Popconfirm = {
   name: 'APopconfirm',
   props: {
     ...tooltipProps,
-    prefixCls: PropTypes.string.def('ant-popover'),
+    prefixCls: PropTypes.string,
     transitionName: PropTypes.string.def('zoom-big'),
     content: PropTypes.any,
     title: PropTypes.any,
     trigger: tooltipProps.trigger.def('click'),
     okType: btnProps.type.def('primary'),
+    disabled: PropTypes.bool.def(false),
     okText: PropTypes.any,
     cancelText: PropTypes.any,
+    icon: PropTypes.any,
+    okButtonProps: PropTypes.object,
+    cancelButtonProps: PropTypes.object,
   },
   mixins: [BaseMixin],
   model: {
@@ -32,97 +37,138 @@ export default {
     event: 'visibleChange',
   },
   watch: {
-    visible (val) {
-      this.sVisible = val
+    visible(val) {
+      this.sVisible = val;
     },
   },
-  data () {
-    return {
-      sVisible: this.$props.visible,
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
+    const props = getOptionProps(this);
+    const state = { sVisible: false };
+    if ('visible' in props) {
+      state.sVisible = props.visible;
     }
+    if ('defaultVisible' in props) {
+      state.sVisible = props.defaultVisible;
+    }
+    return state;
   },
   methods: {
-    onConfirm (e) {
-      this.setVisible(false)
-      this.$emit('confirm', e)
+    onConfirm(e) {
+      this.setVisible(false, e);
+      this.$emit('confirm', e);
     },
 
-    onCancel (e) {
-      this.setVisible(false)
-      this.$emit('cancel', e)
+    onCancel(e) {
+      this.setVisible(false, e);
+      this.$emit('cancel', e);
     },
 
-    onVisibleChange (sVisible) {
-      this.setVisible(sVisible)
-    },
-
-    setVisible (sVisible) {
-      if (!hasProp(this, 'visible')) {
-        this.setState({ sVisible })
+    onVisibleChange(sVisible) {
+      const { disabled } = this.$props;
+      if (disabled) {
+        return;
       }
-      this.$emit('visibleChange', sVisible)
+      this.setVisible(sVisible);
     },
-    getPopupDomNode () {
-      return this.$refs.tooltip.getPopupDomNode()
+
+    setVisible(sVisible, e) {
+      if (!hasProp(this, 'visible')) {
+        this.setState({ sVisible });
+      }
+      this.$emit('visibleChange', sVisible, e);
     },
-    renderOverlay (popconfirmLocale) {
-      const { prefixCls, okType } = this
+    getPopupDomNode() {
+      return this.$refs.tooltip.getPopupDomNode();
+    },
+    renderOverlay(prefixCls, popconfirmLocale) {
+      const { okType, okButtonProps, cancelButtonProps } = this;
+      const icon = getComponentFromProp(this, 'icon') || (
+        <Icon type="exclamation-circle" theme="filled" />
+      );
+      const cancelBtnProps = mergeProps(
+        {
+          props: {
+            size: 'small',
+          },
+          on: {
+            click: this.onCancel,
+          },
+        },
+        cancelButtonProps,
+      );
+      const okBtnProps = mergeProps(
+        {
+          props: {
+            type: okType,
+            size: 'small',
+          },
+          on: {
+            click: this.onConfirm,
+          },
+        },
+        okButtonProps,
+      );
       return (
         <div class={`${prefixCls}-inner-content`}>
           <div class={`${prefixCls}-message`}>
-            <Icon type='exclamation-circle' />
-            <div class={`${prefixCls}-message-title`}>
-              {getComponentFromProp(this, 'title')}
-            </div>
+            {icon}
+            <div class={`${prefixCls}-message-title`}>{getComponentFromProp(this, 'title')}</div>
           </div>
           <div class={`${prefixCls}-buttons`}>
-            <Button onClick={this.onCancel} size='small'>
+            <Button {...cancelBtnProps}>
               {getComponentFromProp(this, 'cancelText') || popconfirmLocale.cancelText}
             </Button>
-            <Button onClick={this.onConfirm} type={okType} size='small'>
+            <Button {...okBtnProps}>
               {getComponentFromProp(this, 'okText') || popconfirmLocale.okText}
             </Button>
           </div>
         </div>
-      )
+      );
     },
   },
-  render (h) {
-    const props = getOptionProps(this)
-    const otherProps = omit(props, [
-      'title',
-      'content',
-      'cancelText',
-      'okText',
-    ])
+  render() {
+    const props = getOptionProps(this);
+    const { prefixCls: customizePrefixCls } = props;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('popover', customizePrefixCls);
+
+    const otherProps = omit(props, ['title', 'content', 'cancelText', 'okText']);
     const tooltipProps = {
       props: {
         ...otherProps,
+        prefixCls,
         visible: this.sVisible,
       },
       ref: 'tooltip',
       on: {
         visibleChange: this.onVisibleChange,
       },
-    }
+    };
     const overlay = (
       <LocaleReceiver
-        componentName='Popconfirm'
+        componentName="Popconfirm"
         defaultLocale={defaultLocale.Popconfirm}
-        scopedSlots={
-          { default: this.renderOverlay }
-        }
-      />)
+        scopedSlots={{
+          default: popconfirmLocale => this.renderOverlay(prefixCls, popconfirmLocale),
+        }}
+      />
+    );
     return (
-      <Tooltip
-        {...tooltipProps}
-      >
-        <template slot='title'>
-          {overlay}
-        </template>
+      <Tooltip {...tooltipProps}>
+        <template slot="title">{overlay}</template>
         {this.$slots.default}
       </Tooltip>
-    )
+    );
   },
-}
+};
 
+/* istanbul ignore next */
+Popconfirm.install = function(Vue) {
+  Vue.use(Base);
+  Vue.component(Popconfirm.name, Popconfirm);
+};
+
+export default Popconfirm;

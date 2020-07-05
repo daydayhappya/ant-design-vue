@@ -1,5 +1,6 @@
-import '../../style/index.less'
-import './index.less'
+import '../../style/index.less';
+import './index.less';
 
 // style dependencies
-import '../../tooltip/style'
+// deps-lint-skip: layout
+import '../../tooltip/style';

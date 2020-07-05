@@ -1,152 +1,131 @@
+import ClearableLabeledInput from './ClearableLabeledInput';
+import ResizableTextArea from './ResizableTextArea';
+import inputProps from './inputProps';
+import hasProp, { getListeners, getOptionProps } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+import { fixControlledValue, resolveOnChange } from './Input';
+import PropTypes from '../_util/vue-types';
 
-import omit from 'omit.js'
-import inputProps from './inputProps'
-import calculateNodeHeight from './calculateNodeHeight'
-import hasProp from '../_util/props-util'
-
-function onNextFrame (cb) {
-  if (window.requestAnimationFrame) {
-    return window.requestAnimationFrame(cb)
-  }
-  return window.setTimeout(cb, 1)
-}
-
-function clearNextFrameAction (nextFrameId) {
-  if (window.cancelAnimationFrame) {
-    window.cancelAnimationFrame(nextFrameId)
-  } else {
-    window.clearTimeout(nextFrameId)
-  }
-}
-function fixControlledValue (value) {
-  if (typeof value === 'undefined' || value === null) {
-    return ''
-  }
-  return value
-}
+const TextAreaProps = {
+  ...inputProps,
+  autosize: PropTypes.oneOfType([Object, Boolean]),
+  autoSize: PropTypes.oneOfType([Object, Boolean]),
+};
 
 export default {
   name: 'ATextarea',
-  props: {
-    ...inputProps,
-    autosize: [Object, Boolean],
-  },
+  inheritAttrs: false,
   model: {
     prop: 'value',
     event: 'change.value',
   },
-  data () {
-    const { value, defaultValue } = this.$props
+  props: {
+    ...TextAreaProps,
+  },
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
+    const value = typeof this.value === 'undefined' ? this.defaultValue : this.value;
     return {
-      stateValue: fixControlledValue(!hasProp(this, 'value') ? defaultValue : value),
-      nextFrameActionId: undefined,
-      textareaStyles: {},
-    }
+      stateValue: typeof value === 'undefined' ? '' : value,
+    };
   },
-  computed: {
-  },
+  computed: {},
   watch: {
-    value (val) {
-      this.stateValue = fixControlledValue(val)
-      if (this.nextFrameActionId) {
-        clearNextFrameAction(this.nextFrameActionId)
-      }
-      this.nextFrameActionId = onNextFrame(this.resizeTextarea)
+    value(val) {
+      this.stateValue = val;
     },
   },
-  mounted () {
+  mounted() {
     this.$nextTick(() => {
-      this.resizeTextarea()
       if (this.autoFocus) {
-        this.focus()
+        this.focus();
       }
-    })
+    });
   },
   methods: {
-    handleKeyDown (e) {
-      if (e.keyCode === 13) {
-        this.$emit('pressEnter', e)
-      }
-      this.$emit('keydown', e)
-    },
-    resizeTextarea () {
-      const { autosize } = this.$props
-      if (!autosize || !this.$refs.textArea) {
-        return
-      }
-      const minRows = autosize ? autosize.minRows : null
-      const maxRows = autosize ? autosize.maxRows : null
-      const textareaStyles = calculateNodeHeight(this.$refs.textArea, false, minRows, maxRows)
-      this.textareaStyles = textareaStyles
-    },
-
-    getTextAreaClassName () {
-      const { prefixCls, disabled } = this.$props
-      return {
-        [prefixCls]: true,
-        [`${prefixCls}-disabled`]: disabled,
-      }
-    },
-
-    handleTextareaChange (e) {
+    setValue(value, callback) {
       if (!hasProp(this, 'value')) {
-        this.stateValue = e.target.value
+        this.stateValue = value;
         this.$nextTick(() => {
-          this.resizeTextarea()
-        })
+          callback && callback();
+        });
       } else {
-        this.$forceUpdate()
+        // 不在严格受控
+        // https://github.com/vueComponent/ant-design-vue/issues/2207，modal 是 新 new 实例，更新队列和当前不在同一个更新队列中
+        // this.$forceUpdate();
       }
-      if (!e.target.composing) {
-        this.$emit('change.value', e.target.value)
+    },
+    handleKeyDown(e) {
+      if (e.keyCode === 13) {
+        this.$emit('pressEnter', e);
       }
-      this.$emit('change', e)
-      this.$emit('input', e)
+      this.$emit('keydown', e);
+    },
+    onChange(e) {
+      this.$emit('change.value', e.target.value);
+      this.$emit('change', e);
+      this.$emit('input', e);
+    },
+    handleChange(e) {
+      const { value, composing } = e.target;
+      if (((e.isComposing || composing) && this.lazy) || this.stateValue === value) return;
+
+      this.setValue(e.target.value, () => {
+        this.$refs.resizableTextArea.resizeTextarea();
+      });
+      resolveOnChange(this.$refs.resizableTextArea.$refs.textArea, e, this.onChange);
     },
 
-    focus () {
-      this.$refs.textArea.focus()
+    focus() {
+      this.$refs.resizableTextArea.$refs.textArea.focus();
     },
 
-    blur () {
-      this.$refs.textArea.blur()
+    blur() {
+      this.$refs.resizableTextArea.$refs.textArea.blur();
+    },
+    handleReset(e) {
+      this.setValue('', () => {
+        this.$refs.resizableTextArea.renderTextArea();
+        this.focus();
+      });
+      resolveOnChange(this.$refs.resizableTextArea.$refs.textArea, e, this.onChange);
     },
 
+    renderTextArea(prefixCls) {
+      const props = getOptionProps(this);
+      const resizeProps = {
+        props: {
+          ...props,
+          prefixCls,
+        },
+        on: {
+          ...getListeners(this),
+          input: this.handleChange,
+          keydown: this.handleKeyDown,
+        },
+        attrs: this.$attrs,
+      };
+      return <ResizableTextArea {...resizeProps} ref="resizableTextArea" />;
+    },
   },
-  render () {
-    const { stateValue,
-      getTextAreaClassName,
-      handleKeyDown,
-      handleTextareaChange,
-      textareaStyles,
-      $attrs,
-      $listeners,
-    } = this
-    const otherProps = omit(this.$props, [
-      'prefixCls',
-      'autosize',
-      'type',
-    ])
-    const textareaProps = {
-      attrs: { ...otherProps, ...$attrs },
-      on: {
-        ...$listeners,
-        keydown: handleKeyDown,
-        input: handleTextareaChange,
+  render() {
+    const { stateValue, prefixCls: customizePrefixCls } = this;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('input', customizePrefixCls);
+
+    const props = {
+      props: {
+        ...getOptionProps(this),
+        prefixCls,
+        inputType: 'text',
+        value: fixControlledValue(stateValue),
+        element: this.renderTextArea(prefixCls),
+        handleReset: this.handleReset,
       },
-    }
-    if ($listeners['change.value']) {
-      textareaProps.directives = [{ name: 'ant-input' }]
-    }
-    return (
-      <textarea
-        {...textareaProps}
-        value={stateValue}
-        class={getTextAreaClassName()}
-        style={textareaStyles}
-        ref='textArea'
-      />
-    )
+      on: getListeners(this),
+    };
+    return <ClearableLabeledInput {...props} />;
   },
-}
-
+};

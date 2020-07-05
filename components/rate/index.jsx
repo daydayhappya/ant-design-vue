@@ -1,8 +1,11 @@
-
-import PropTypes from '../_util/vue-types'
-import { initDefaultProps, getOptionProps } from '../_util/props-util'
-import VcRate from '../vc-rate'
-import Icon from '../icon'
+import omit from 'omit.js';
+import PropTypes from '../_util/vue-types';
+import { getOptionProps, getComponentFromProp, getListeners } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+import VcRate from '../vc-rate';
+import Icon from '../icon';
+import Tooltip from '../tooltip';
+import Base from '../base';
 
 export const RateProps = {
   prefixCls: PropTypes.string,
@@ -11,51 +14,60 @@ export const RateProps = {
   defaultValue: PropTypes.value,
   allowHalf: PropTypes.bool,
   allowClear: PropTypes.bool,
+  tooltips: PropTypes.arrayOf(PropTypes.string),
   disabled: PropTypes.bool,
   character: PropTypes.any,
   autoFocus: PropTypes.bool,
-}
+};
 
-export default {
+const Rate = {
   name: 'ARate',
   model: {
     prop: 'value',
     event: 'change',
   },
-  props: initDefaultProps(RateProps, {
-    prefixCls: 'ant-rate',
-  }),
+  props: RateProps,
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
   methods: {
-    focus () {
-      this.$refs.refRate.focus()
+    characterRender(node, { index }) {
+      const { tooltips } = this.$props;
+      if (!tooltips) return node;
+      return <Tooltip title={tooltips[index]}>{node}</Tooltip>;
     },
-    blur () {
-      this.$refs.refRate.blur()
+    focus() {
+      this.$refs.refRate.focus();
+    },
+    blur() {
+      this.$refs.refRate.blur();
     },
   },
-  render () {
-    const { character, ...restProps } = getOptionProps(this)
-    const slotCharacter = this.$slots.character
+  render() {
+    const { prefixCls: customizePrefixCls, ...restProps } = getOptionProps(this);
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('rate', customizePrefixCls);
+
+    const character = getComponentFromProp(this, 'character') || (
+      <Icon type="star" theme="filled" />
+    );
     const rateProps = {
       props: {
         character,
-        ...restProps,
+        characterRender: this.characterRender,
+        prefixCls,
+        ...omit(restProps, ['tooltips']),
       },
-      on: this.$listeners,
+      on: getListeners(this),
       ref: 'refRate',
-    }
-    const slotCharacterHtml = slotCharacter !== undefined ? (
-      <template slot='character'>{slotCharacter}</template>
-    ) : <Icon slot='character' type='star' />
-    return (
-      <VcRate
-        {...rateProps}
-      >
-        {
-          character === undefined ? slotCharacterHtml : null
-        }
-      </VcRate>
-    )
+    };
+    return <VcRate {...rateProps} />;
   },
-}
+};
 
+/* istanbul ignore next */
+Rate.install = function(Vue) {
+  Vue.use(Base);
+  Vue.component(Rate.name, Rate);
+};
+export default Rate;

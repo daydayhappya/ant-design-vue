@@ -1,47 +1,45 @@
-import getRequestAnimationFrame, { cancelRequestAnimationFrame } from '../_util/getRequestAnimationFrame'
+import raf from 'raf';
 
-const reqAnimFrame = getRequestAnimationFrame()
-
-export default function throttleByAnimationFrame (fn) {
-  let requestId
+export default function throttleByAnimationFrame(fn) {
+  let requestId;
 
   const later = args => () => {
-    requestId = null
-    fn(...args)
-  }
+    requestId = null;
+    fn(...args);
+  };
 
   const throttled = (...args) => {
     if (requestId == null) {
-      requestId = reqAnimFrame(later(args))
+      requestId = raf(later(args));
     }
-  }
+  };
 
-  throttled.cancel = () => cancelRequestAnimationFrame(requestId)
+  throttled.cancel = () => raf.cancel(requestId);
 
-  return throttled
+  return throttled;
 }
 
-export function throttleByAnimationFrameDecorator () {
-  return function (target, key, descriptor) {
-    const fn = descriptor.value
-    let definingProperty = false
+export function throttleByAnimationFrameDecorator() {
+  return function(target, key, descriptor) {
+    const fn = descriptor.value;
+    let definingProperty = false;
     return {
       configurable: true,
-      get () {
+      get() {
         if (definingProperty || this === target.prototype || this.hasOwnProperty(key)) {
-          return fn
+          return fn;
         }
 
-        const boundFn = throttleByAnimationFrame(fn.bind(this))
-        definingProperty = true
+        const boundFn = throttleByAnimationFrame(fn.bind(this));
+        definingProperty = true;
         Object.defineProperty(this, key, {
           value: boundFn,
           configurable: true,
           writable: true,
-        })
-        definingProperty = false
-        return boundFn
+        });
+        definingProperty = false;
+        return boundFn;
       },
-    }
-  }
+    };
+  };
 }

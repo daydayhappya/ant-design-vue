@@ -1,9 +1,17 @@
-import Timeline from './Timeline'
+import Timeline from './Timeline';
+import TimelineItem from './TimelineItem';
+import Base from '../base';
 
-export { TimelineProps } from './Timeline'
-export { TimeLineItemProps } from './TimelineItem'
-import TimelineItem from './TimelineItem'
+export { TimelineProps } from './Timeline';
+export { TimeLineItemProps } from './TimelineItem';
 
-Timeline.Item = TimelineItem
+Timeline.Item = TimelineItem;
 
-export default Timeline
+/* istanbul ignore next */
+Timeline.install = function(Vue) {
+  Vue.use(Base);
+  Vue.component(Timeline.name, Timeline);
+  Vue.component(TimelineItem.name, TimelineItem);
+};
+
+export default Timeline;

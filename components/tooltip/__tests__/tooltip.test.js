@@ -1,96 +1,100 @@
-import { asyncExpect } from '@/tests/utils'
-import { mount } from '@vue/test-utils'
-import Tooltip from '..'
-import Button from '../../button'
+import { asyncExpect } from '@/tests/utils';
+import { mount } from '@vue/test-utils';
+import Tooltip from '..';
+import mountTest from '../../../tests/shared/mountTest';
 
 describe('Tooltip', () => {
+  mountTest(Tooltip);
   it('check `onVisibleChange` arguments', async () => {
-    const onVisibleChange = jest.fn()
-    const wrapper = mount({
-      props: ['title', 'visible'],
-      render () {
-        const props = {
-          props: {
-            title: this.title || '',
-            mouseEnterDelay: 0,
-            mouseLeaveDelay: 0,
-          },
-          on: {
-            visibleChange: onVisibleChange,
-          },
-        }
-        if (this.visible !== undefined) {
-          props.props.visible = this.visible
-        }
-        return <Tooltip
-          ref='tooltip'
-          {...props}
-        >
-          <div id='hello'>Hello world!</div>
-        </Tooltip>
+    const onVisibleChange = jest.fn();
+    const wrapper = mount(
+      {
+        props: ['title', 'visible'],
+        render() {
+          const props = {
+            props: {
+              title: this.title || '',
+              mouseEnterDelay: 0,
+              mouseLeaveDelay: 0,
+            },
+            on: {
+              visibleChange: onVisibleChange,
+            },
+          };
+          if (this.visible !== undefined) {
+            props.props.visible = this.visible;
+          }
+          return (
+            <Tooltip ref="tooltip" {...props}>
+              <div id="hello">Hello world!</div>
+            </Tooltip>
+          );
+        },
       },
-    }, { sync: false })
+      { sync: false },
+    );
 
-    let div = null
-    let lastCount = null
+    let div = null;
+    let lastCount = null;
     await asyncExpect(() => {
       // `title` is empty.
-      div = wrapper.findAll('#hello').at(0)
-      div.trigger('mouseenter')
-    })
+      div = wrapper.findAll('#hello').at(0);
+      div.trigger('mouseenter');
+    });
     await asyncExpect(() => {
-      expect(onVisibleChange).not.toHaveBeenCalled()
-      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false)
-    })
+      expect(onVisibleChange).not.toHaveBeenCalled();
+      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false);
+    });
     await asyncExpect(() => {
-      div.trigger('mouseleave')
-    })
+      div.trigger('mouseleave');
+    });
     await asyncExpect(() => {
-      expect(onVisibleChange).not.toHaveBeenCalled()
-      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false)
-    })
+      expect(onVisibleChange).not.toHaveBeenCalled();
+      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false);
+    });
     await asyncExpect(() => {
       // update `title` value.
-      wrapper.setProps({ title: 'Have a nice day!' })
-    })
+      wrapper.setProps({ title: 'Have a nice day!' });
+    });
     await asyncExpect(() => {
-      wrapper.findAll('#hello').at(0).trigger('mouseenter')
-    })
+      wrapper
+        .findAll('#hello')
+        .at(0)
+        .trigger('mouseenter');
+    });
     await asyncExpect(() => {
-      expect(onVisibleChange).toHaveBeenLastCalledWith(true)
-      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(true)
-    }, 0)
+      expect(onVisibleChange).toHaveBeenLastCalledWith(true);
+      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(true);
+    }, 0);
     await asyncExpect(() => {
-      wrapper.find('#hello').trigger('mouseleave')
-    })
+      wrapper.find('#hello').trigger('mouseleave');
+    });
     await asyncExpect(() => {
-      expect(onVisibleChange).toHaveBeenLastCalledWith(false)
-      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false)
-    })
+      expect(onVisibleChange).toHaveBeenLastCalledWith(false);
+      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false);
+    });
     await asyncExpect(() => {
       // add `visible` props.
-      wrapper.setProps({ visible: false })
-    })
+      wrapper.setProps({ visible: false });
+    });
     await asyncExpect(() => {
-      wrapper.find('#hello').trigger('mouseenter')
-    })
+      wrapper.find('#hello').trigger('mouseenter');
+    });
     await asyncExpect(() => {
-      expect(onVisibleChange).toHaveBeenLastCalledWith(true)
-      lastCount = onVisibleChange.mock.calls.length
-      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false)
-    })
+      expect(onVisibleChange).toHaveBeenLastCalledWith(true);
+      lastCount = onVisibleChange.mock.calls.length;
+      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false);
+    });
     await asyncExpect(() => {
       // always trigger onVisibleChange
-      wrapper.trigger('mouseleave')
-    })
+      wrapper.trigger('mouseleave');
+    });
     await asyncExpect(() => {
-      expect(onVisibleChange.mock.calls.length).toBe(lastCount) // no change with lastCount
-      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false)
-    })
-    await asyncExpect(() => {
-
-    })
-  })
+      expect(onVisibleChange.mock.calls.length).toBe(lastCount); // no change with lastCount
+      expect(wrapper.vm.$refs.tooltip.$refs.tooltip.visible).toBe(false);
+    });
+    await asyncExpect(() => {});
+  });
 
   // it('should hide when mouse leave native disabled button', () => {
   //   const onVisibleChange = jest.fn()
@@ -155,21 +159,6 @@ describe('Tooltip', () => {
   //   expect(wrapper2.find('span').at(0).element.style.display).toBe('block')
   // })
 
-  // it('should not wrap span when trigger is not hover', () => {
-  //   const wrapper = mount(
-  //     <Tooltip
-  //       title='xxxxx'
-  //       trigger='click'
-  //       mouseEnterDelay={0}
-  //       mouseLeaveDelay={0}
-  //     >
-  //       <button disabled>Hello world!</button>
-  //     </Tooltip>
-  //   )
-
-  //   expect(wrapper.find('span')).toHaveLength(0)
-  // })
-
   // it('should works for arrowPointAtCenter', () => {
   //   const arrowWidth = 5
   //   const horizontalArrowShift = 16
@@ -212,4 +201,4 @@ describe('Tooltip', () => {
   //   }
   //   jest.dontMock('rc-trigger', suit)
   // })
-})
+});

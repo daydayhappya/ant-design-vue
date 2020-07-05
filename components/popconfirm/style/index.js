@@ -1,5 +1,6 @@
-import '../../style/index.less'
+import '../../style/index.less';
 
 // style dependencies
-import '../../popover/style'
-import '../../button/style'
+// deps-lint-skip: tooltip, popover
+import '../../popover/style';
+import '../../button/style';

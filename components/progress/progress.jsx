@@ -1,34 +1,33 @@
-import classNames from 'classnames'
-import PropTypes from '../_util/vue-types'
-import { getOptionProps, initDefaultProps } from '../_util/props-util'
-import Icon from '../icon'
-import { Circle } from '../vc-progress'
+import classNames from 'classnames';
+import PropTypes from '../_util/vue-types';
+import { getOptionProps, initDefaultProps, getListeners } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+import Icon from '../icon';
+import Line from './line';
+import Circle from './circle';
+import { validProgress } from './utils';
 
-function addUnit (num, unit) {
-  const unitType = unit || 'px'
-  return num ? num + unitType : null
-}
-const statusColorMap = {
-  normal: '#108ee9',
-  exception: '#ff5500',
-  success: '#87d068',
-}
+const ProgressStatuses = ['normal', 'exception', 'active', 'success'];
+export const ProgressType = PropTypes.oneOf(['line', 'circle', 'dashboard']);
+export const ProgressSize = PropTypes.oneOf(['default', 'small']);
 
 export const ProgressProps = {
   prefixCls: PropTypes.string,
-  type: PropTypes.oneOf(['line', 'circle', 'dashboard']),
+  type: ProgressType,
   percent: PropTypes.number,
   successPercent: PropTypes.number,
   format: PropTypes.func,
-  status: PropTypes.oneOf(['success', 'active', 'exception']),
+  status: PropTypes.oneOf(ProgressStatuses),
   showInfo: PropTypes.bool,
   strokeWidth: PropTypes.number,
+  strokeLinecap: PropTypes.oneOf(['butt', 'round', 'square']),
+  strokeColor: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
   trailColor: PropTypes.string,
   width: PropTypes.number,
   gapDegree: PropTypes.number,
   gapPosition: PropTypes.oneOf(['top', 'bottom', 'left', 'right']),
-  size: PropTypes.oneOf(['default', 'small']),
-}
+  size: ProgressSize,
+};
 
 export default {
   name: 'AProgress',
@@ -37,100 +36,96 @@ export default {
     percent: 0,
     showInfo: true,
     trailColor: '#f3f3f3',
-    prefixCls: 'ant-progress',
     size: 'default',
+    gapDegree: 0,
+    strokeLinecap: 'round',
   }),
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  methods: {
+    getPercentNumber() {
+      const { successPercent, percent = 0 } = this.$props;
+      return parseInt(
+        successPercent !== undefined ? successPercent.toString() : percent.toString(),
+        10,
+      );
+    },
 
-  render () {
-    const props = getOptionProps(this)
-    const {
-      prefixCls, percent = 0, status, format, trailColor, size, successPercent,
-      type, strokeWidth, width, showInfo, gapDegree = 0, gapPosition,
-    } = props
-    const progressStatus = parseInt((successPercent ? successPercent.toString() : percent.toString()), 10) >= 100 &&
-    !('status' in props) ? 'success' : (status || 'normal')
-    let progressInfo
-    let progress
-    const textFormatter = format || (percentNumber => `${percentNumber}%`)
+    getProgressStatus() {
+      const { status } = this.$props;
+      if (ProgressStatuses.indexOf(status) < 0 && this.getPercentNumber() >= 100) {
+        return 'success';
+      }
+      return status || 'normal';
+    },
+    renderProcessInfo(prefixCls, progressStatus) {
+      const { showInfo, format, type, percent, successPercent } = this.$props;
+      if (!showInfo) return null;
 
-    if (showInfo) {
-      let text
-      const iconType = (type === 'circle' || type === 'dashboard') ? '' : '-circle'
-      if (progressStatus === 'exception') {
-        text = format ? textFormatter(percent) : <Icon type={`cross${iconType}`} />
+      let text;
+      const textFormatter =
+        format || this.$scopedSlots.format || (percentNumber => `${percentNumber}%`);
+      const iconType = type === 'circle' || type === 'dashboard' ? '' : '-circle';
+      if (
+        format ||
+        this.$scopedSlots.format ||
+        (progressStatus !== 'exception' && progressStatus !== 'success')
+      ) {
+        text = textFormatter(validProgress(percent), validProgress(successPercent));
+      } else if (progressStatus === 'exception') {
+        text = <Icon type={`close${iconType}`} theme={type === 'line' ? 'filled' : 'outlined'} />;
       } else if (progressStatus === 'success') {
-        text = format ? textFormatter(percent) : <Icon type={`check${iconType}`} />
-      } else {
-        text = textFormatter(percent)
+        text = <Icon type={`check${iconType}`} theme={type === 'line' ? 'filled' : 'outlined'} />;
       }
-      progressInfo = <span class={`${prefixCls}-text`}>{text}</span>
-    }
+      return (
+        <span class={`${prefixCls}-text`} title={typeof text === 'string' ? text : undefined}>
+          {text}
+        </span>
+      );
+    },
+  },
+  render() {
+    const props = getOptionProps(this);
+    const { prefixCls: customizePrefixCls, size, type, showInfo } = props;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('progress', customizePrefixCls);
+    const progressStatus = this.getProgressStatus();
+    const progressInfo = this.renderProcessInfo(prefixCls, progressStatus);
 
+    let progress;
+
+    // Render progress shape
     if (type === 'line') {
-      const percentStyle = {
-        width: `${percent}%`,
-        height: addUnit(strokeWidth) || (size === 'small' ? '6px' : '8px'),
-      }
-      const successPercentStyle = {
-        width: `${successPercent}%`,
-        height: addUnit(strokeWidth) || (size === 'small' ? '6px' : '8px'),
-      }
-      const successSegment = successPercent !== undefined
-        ? <div class={`${prefixCls}-success-bg`} style={successPercentStyle} />
-        : null
-      progress = (
-        <div>
-          <div class={`${prefixCls}-outer`}>
-            <div class={`${prefixCls}-inner`}>
-              <div class={`${prefixCls}-bg`} style={percentStyle} />
-              {successSegment}
-            </div>
-          </div>
-          {progressInfo}
-        </div>
-      )
+      const lineProps = {
+        props: {
+          ...props,
+          prefixCls,
+        },
+      };
+      progress = <Line {...lineProps}>{progressInfo}</Line>;
     } else if (type === 'circle' || type === 'dashboard') {
-      const circleSize = width || 120
-      const circleStyle = {
-        width: addUnit(circleSize),
-        height: addUnit(circleSize),
-        fontSize: addUnit(circleSize * 0.15 + 6),
-      }
-      const circleWidth = strokeWidth || 6
-      const gapPos = gapPosition || type === 'dashboard' && 'bottom' || 'top'
-      const gapDeg = gapDegree || (type === 'dashboard' && 75)
-      progress = (
-        <div class={`${prefixCls}-inner`} style={circleStyle}>
-          <Circle
-            percent={percent}
-            strokeWidth={circleWidth}
-            trailWidth={circleWidth}
-            strokeColor={statusColorMap[progressStatus]}
-            trailColor={trailColor}
-            prefixCls={prefixCls}
-            gapDegree={gapDeg || 0}
-            gapPosition={gapPos}
-          />
-          {progressInfo}
-        </div>
-      )
+      const circleProps = {
+        props: {
+          ...props,
+          prefixCls,
+          progressStatus,
+        },
+      };
+      progress = <Circle {...circleProps}>{progressInfo}</Circle>;
     }
 
     const classString = classNames(prefixCls, {
-      [`${prefixCls}-${type === 'dashboard' && 'circle' || type}`]: true,
+      [`${prefixCls}-${(type === 'dashboard' && 'circle') || type}`]: true,
       [`${prefixCls}-status-${progressStatus}`]: true,
       [`${prefixCls}-show-info`]: showInfo,
       [`${prefixCls}-${size}`]: size,
-    })
+    });
 
     const progressProps = {
-      on: this.$listeners,
+      on: getListeners(this),
       class: classString,
-    }
-    return (
-      <div {...progressProps}>
-        {progress}
-      </div>
-    )
+    };
+    return <div {...progressProps}>{progress}</div>;
   },
-}
+};

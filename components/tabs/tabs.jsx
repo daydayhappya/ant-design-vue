@@ -1,178 +1,184 @@
+import Icon from '../icon';
+import VcTabs, { TabPane } from '../vc-tabs/src';
+import TabContent from '../vc-tabs/src/TabContent';
+import { isFlexSupported } from '../_util/styleChecker';
+import PropTypes from '../_util/vue-types';
+import {
+  getComponentFromProp,
+  getOptionProps,
+  filterEmpty,
+  getListeners,
+} from '../_util/props-util';
+import { cloneElement } from '../_util/vnode';
+import isValid from '../_util/isValid';
+import { ConfigConsumerProps } from '../config-provider';
+import TabBar from './TabBar';
 
-import Tabs from '../vc-tabs/src/Tabs'
-import isFlexSupported from '../_util/isFlexSupported'
-import { hasProp, getComponentFromProp, isEmptyElement, getSlotOptions } from '../_util/props-util'
-import warning from '../_util/warning'
 export default {
+  TabPane,
   name: 'ATabs',
-  props: {
-    prefixCls: { type: String, default: 'ant-tabs' },
-    activeKey: String,
-    defaultActiveKey: String,
-    hideAdd: { type: Boolean, default: false },
-    tabBarStyle: Object,
-    tabBarExtraContent: [String, Number, Function],
-    destroyInactiveTabPane: { type: Boolean, default: false },
-    type: {
-      validator (value) {
-        return ['line', 'card', 'editable-card'].includes(value)
-      },
-    },
-    tabPosition: {
-      validator (value) {
-        return ['top', 'right', 'bottom', 'left'].includes(value)
-      },
-    },
-    size: {
-      validator (value) {
-        return ['default', 'small', 'large'].includes(value)
-      },
-    },
-    animated: { type: [Boolean, Object], default: undefined },
-    tabBarGutter: Number,
-  },
   model: {
     prop: 'activeKey',
     event: 'change',
   },
-  methods: {
-    createNewTab (targetKey) {
-      this.$emit('edit', targetKey, 'add')
-    },
-
-    removeTab (targetKey, e) {
-      e.stopPropagation()
-      if (!targetKey) {
-        return
-      }
-      this.$emit('edit', targetKey, 'remove')
-    },
-
-    handleChange (activeKey) {
-      this.$emit('change', activeKey)
-    },
-    onTabClick (val) {
-      this.$emit('tabClick', val)
-    },
-    onPrevClick (val) {
-      this.$emit('prevClick', val)
-    },
-    onNextClick (val) {
-      this.$emit('nextClick', val)
-    },
+  props: {
+    prefixCls: PropTypes.string,
+    activeKey: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    defaultActiveKey: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    hideAdd: PropTypes.bool.def(false),
+    tabBarStyle: PropTypes.object,
+    tabBarExtraContent: PropTypes.any,
+    destroyInactiveTabPane: PropTypes.bool.def(false),
+    type: PropTypes.oneOf(['line', 'card', 'editable-card']),
+    tabPosition: PropTypes.oneOf(['top', 'right', 'bottom', 'left']).def('top'),
+    size: PropTypes.oneOf(['default', 'small', 'large']),
+    animated: PropTypes.oneOfType([PropTypes.bool, PropTypes.object]),
+    tabBarGutter: PropTypes.number,
+    renderTabBar: PropTypes.func,
   },
-
-  mounted () {
-    const NO_FLEX = ' no-flex'
-    const tabNode = this.$el
-    if (tabNode && !isFlexSupported() && tabNode.className.indexOf(NO_FLEX) === -1) {
-      tabNode.className += NO_FLEX
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  mounted() {
+    const NO_FLEX = ' no-flex';
+    const tabNode = this.$el;
+    if (tabNode && !isFlexSupported && tabNode.className.indexOf(NO_FLEX) === -1) {
+      tabNode.className += NO_FLEX;
     }
   },
+  methods: {
+    removeTab(targetKey, e) {
+      e.stopPropagation();
+      if(isValid(targetKey)) {
+        this.$emit('edit', targetKey, 'remove');
+      }
+    },
+    handleChange(activeKey) {
+      this.$emit('change', activeKey);
+    },
+    createNewTab(targetKey) {
+      this.$emit('edit', targetKey, 'add');
+    },
+    onTabClick(val) {
+      this.$emit('tabClick', val);
+    },
+    onPrevClick(val) {
+      this.$emit('prevClick', val);
+    },
+    onNextClick(val) {
+      this.$emit('nextClick', val);
+    },
+  },
 
-  render (createElement) {
+  render() {
+    const props = getOptionProps(this);
     const {
-      prefixCls,
+      prefixCls: customizePrefixCls,
       size,
       type = 'line',
       tabPosition,
-      tabBarStyle,
+      animated = true,
       hideAdd,
-      onTabClick,
-      onPrevClick,
-      onNextClick,
-      animated,
-      destroyInactiveTabPane = false,
-      activeKey,
-      defaultActiveKey,
-      $slots,
-      tabBarGutter,
-    } = this
-    let { inkBarAnimated, tabPaneAnimated } = typeof animated === 'object' ? { // eslint-disable-line
-      inkBarAnimated: !!animated.inkBar, tabPaneAnimated: !!animated.tabPane,
-    } : {
-      inkBarAnimated: animated === undefined || animated, tabPaneAnimated: animated === undefined || animated,
-    }
+      renderTabBar,
+    } = props;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('tabs', customizePrefixCls);
+    const children = filterEmpty(this.$slots.default);
+
+    let tabBarExtraContent = getComponentFromProp(this, 'tabBarExtraContent');
+    let tabPaneAnimated = typeof animated === 'object' ? animated.tabPane : animated;
 
     // card tabs should not have animation
     if (type !== 'line') {
-      tabPaneAnimated = animated === undefined ? false : tabPaneAnimated
+      tabPaneAnimated = 'animated' in props ? tabPaneAnimated : false;
     }
     const cls = {
-      [`${prefixCls}-small`]: size === 'small',
-      [`${prefixCls}-large`]: size === 'large',
-      [`${prefixCls}-default`]: size === 'default',
       [`${prefixCls}-vertical`]: tabPosition === 'left' || tabPosition === 'right',
+      [`${prefixCls}-${size}`]: !!size,
       [`${prefixCls}-card`]: type.indexOf('card') >= 0,
       [`${prefixCls}-${type}`]: true,
       [`${prefixCls}-no-animation`]: !tabPaneAnimated,
-    }
-    const tabBarExtraContent = getComponentFromProp(this, 'tabBarExtraContent')
-    const children = []
-    $slots.default && $slots.default.forEach((child) => {
-      if (isEmptyElement(child)) { return }
-      const { componentOptions } = child
-      const __ANT_TAB_PANE = getSlotOptions(child).__ANT_TAB_PANE
-      warning(__ANT_TAB_PANE, '`Tabs children just support TabPane')
-      if (componentOptions && __ANT_TAB_PANE) {
-        componentOptions.propsData = componentOptions.propsData || {}
-        if (componentOptions.propsData.tab === undefined) {
-          const tab = (componentOptions.children || []).filter(({ data = {}}) => data.slot === 'tab')
-          componentOptions.propsData.tab = tab
-        }
-        children.push(child)
+    };
+    // only card type tabs can be added and closed
+    let childrenWithClose = [];
+    if (type === 'editable-card') {
+      childrenWithClose = [];
+      children.forEach((child, index) => {
+        const props = getOptionProps(child);
+        let closable = props.closable;
+        closable = typeof closable === 'undefined' ? true : closable;
+        const closeIcon = closable ? (
+          <Icon
+            type="close"
+            class={`${prefixCls}-close-x`}
+            onClick={e => this.removeTab(child.key, e)}
+          />
+        ) : null;
+        childrenWithClose.push(
+          cloneElement(child, {
+            props: {
+              tab: (
+                <div class={closable ? undefined : `${prefixCls}-tab-unclosable`}>
+                  {getComponentFromProp(child, 'tab')}
+                  {closeIcon}
+                </div>
+              ),
+            },
+            key: child.key || index,
+          }),
+        );
+      });
+      // Add new tab handler
+      if (!hideAdd) {
+        tabBarExtraContent = (
+          <span>
+            <Icon type="plus" class={`${prefixCls}-new-tab`} onClick={this.createNewTab} />
+            {tabBarExtraContent}
+          </span>
+        );
       }
-    })
+    }
+
+    tabBarExtraContent = tabBarExtraContent ? (
+      <div class={`${prefixCls}-extra-content`}>{tabBarExtraContent}</div>
+    ) : null;
+
+    const renderTabBarSlot = renderTabBar || this.$scopedSlots.renderTabBar;
+    const listeners = getListeners(this);
     const tabBarProps = {
       props: {
-        hideAdd,
-        removeTab: this.removeTab,
-        createNewTab: this.createNewTab,
-        inkBarAnimated,
-        tabBarGutter,
+        ...this.$props,
+        prefixCls,
+        tabBarExtraContent,
+        renderTabBar: renderTabBarSlot,
       },
-      on: {
-        tabClick: onTabClick,
-        prevClick: onPrevClick,
-        nextClick: onNextClick,
-      },
-      style: tabBarStyle,
-    }
-    const tabContentProps = {
-      props: {
-        animated: tabPaneAnimated,
-        animatedWithMargin: true,
-      },
-    }
+      on: listeners,
+    };
+    const contentCls = {
+      [`${prefixCls}-${tabPosition}-content`]: true,
+      [`${prefixCls}-card-content`]: type.indexOf('card') >= 0,
+    };
     const tabsProps = {
       props: {
+        ...getOptionProps(this),
         prefixCls,
         tabBarPosition: tabPosition,
-        tabBarProps: tabBarProps,
-        tabContentProps: tabContentProps,
-        destroyInactiveTabPane,
-        defaultActiveKey,
-        type,
+        // https://github.com/vueComponent/ant-design-vue/issues/2030
+        // 如仅传递 tabBarProps 会导致，第二次执行 renderTabBar 时，丢失 on 属性，
+        // 添加key之后，会在babel jsx 插件中做一次merge，最终TabBar接收的是一个新的对象，而不是 tabBarProps
+        renderTabBar: () => <TabBar key="tabBar" {...tabBarProps} />,
+        renderTabContent: () => (
+          <TabContent class={contentCls} animated={tabPaneAnimated} animatedWithMargin />
+        ),
+        children: childrenWithClose.length > 0 ? childrenWithClose : children,
+        __propsSymbol__: Symbol(),
       },
       on: {
+        ...listeners,
         change: this.handleChange,
-        tabClick: this.onTabClick,
       },
-    }
-    if (hasProp(this, 'activeKey')) {
-      tabsProps.props.activeKey = activeKey
-    }
-    return (
-      <Tabs
-        class={cls}
-        {...tabsProps}
-      >
-        {children}
-        {tabBarExtraContent ? <template slot='tabBarExtraContent'>
-          {tabBarExtraContent}
-        </template> : null}
-      </Tabs>
-    )
+      class: cls,
+    };
+    return <VcTabs {...tabsProps} />;
   },
-}
-
+};

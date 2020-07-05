@@ -2,19 +2,22 @@
 
 set -e # exit with nonzero exit code if anything fails
 
-if [[ $TRAVIS_BRANCH == "master" && $TRAVIS_PULL_REQUEST == "false" ]]; then
+BUMP="bump "
+SITE="update site"
+
+if [[ $TRAVIS_BRANCH == "master" && $TRAVIS_PULL_REQUEST == "false" ]] && [[ $TRAVIS_COMMIT_MESSAGE == *$BUMP* || $TRAVIS_COMMIT_MESSAGE == *$SITE* ]]; then
 
 echo "Starting to update gh-pages\n"
 
-rm -rf site-dist
-mkdir site-dist
+rm -rf _site
+mkdir _site
 
 git config --global user.email "travis@travis-ci.org"
 git config --global user.name "Travis"
 
 npm run site
 
-cd site-dist
+cd _site
 git init
 git add -f .
 git commit -m "Travis build"

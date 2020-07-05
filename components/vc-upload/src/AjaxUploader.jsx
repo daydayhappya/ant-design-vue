@@ -1,211 +1,263 @@
-import PropTypes from '../../_util/vue-types'
-import BaseMixin from '../../_util/BaseMixin'
-import classNames from 'classnames'
-import defaultRequest from './request'
-import getUid from './uid'
-import attrAccept from './attr-accept'
+import PropTypes from '../../_util/vue-types';
+import BaseMixin from '../../_util/BaseMixin';
+import partition from 'lodash/partition';
+import classNames from 'classnames';
+import defaultRequest from './request';
+import getUid from './uid';
+import attrAccept from './attr-accept';
+import traverseFileTree from './traverseFileTree';
+import { getListeners } from '../../_util/props-util';
 
 const upLoadPropTypes = {
   componentTag: PropTypes.string,
   // style: PropTypes.object,
   prefixCls: PropTypes.string,
-  action: PropTypes.string,
   name: PropTypes.string,
   // className: PropTypes.string,
   multiple: PropTypes.bool,
+  directory: PropTypes.bool,
   disabled: PropTypes.bool,
   accept: PropTypes.string,
   // children: PropTypes.any,
   // onStart: PropTypes.func,
-  data: PropTypes.oneOfType([
-    PropTypes.object,
-    PropTypes.func,
-  ]),
+  data: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
+  action: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
   headers: PropTypes.object,
   beforeUpload: PropTypes.func,
   customRequest: PropTypes.func,
   // onProgress: PropTypes.func,
   withCredentials: PropTypes.bool,
-}
+  openFileDialogOnClick: PropTypes.bool,
+  transformFile: PropTypes.func,
+};
 
 const AjaxUploader = {
+  inheritAttrs: false,
   name: 'ajaxUploader',
   mixins: [BaseMixin],
   props: upLoadPropTypes,
-  data () {
-    this.reqs = {}
+  data() {
+    this.reqs = {};
     return {
       uid: getUid(),
-    }
+    };
+  },
+  mounted() {
+    this._isMounted = true;
+  },
+  beforeDestroy() {
+    this._isMounted = false;
+    this.abort();
   },
   methods: {
-    onChange (e) {
-      const files = e.target.files
-      this.uploadFiles(files)
-      this.reset()
+    onChange(e) {
+      const files = e.target.files;
+      this.uploadFiles(files);
+      this.reset();
     },
-    onClick () {
-      const el = this.$refs.fileInputRef
+    onClick() {
+      const el = this.$refs.fileInputRef;
       if (!el) {
-        return
+        return;
       }
-      el.click()
+      el.click();
     },
-    onKeyDown (e) {
+    onKeyDown(e) {
       if (e.key === 'Enter') {
-        this.onClick()
+        this.onClick();
       }
     },
-    onFileDrop (e) {
+    onFileDrop(e) {
+      const { multiple } = this.$props;
+      e.preventDefault();
       if (e.type === 'dragover') {
-        e.preventDefault()
-        return
+        return;
       }
-      const files = Array.prototype.slice.call(e.dataTransfer.files).filter(
-        file => attrAccept(file, this.accept)
-      )
-      this.uploadFiles(files)
+      if (this.directory) {
+        traverseFileTree(e.dataTransfer.items, this.uploadFiles, _file =>
+          attrAccept(_file, this.accept),
+        );
+      } else {
+        let files = partition(Array.prototype.slice.call(e.dataTransfer.files), file =>
+          attrAccept(file, this.accept),
+        );
+        let successFiles = files[0];
+        const errorFiles = files[1];
+        if (multiple === false) {
+          successFiles = successFiles.slice(0, 1);
+        }
+        this.uploadFiles(successFiles);
 
-      e.preventDefault()
+        if (errorFiles.length) {
+          this.$emit('reject', errorFiles);
+        }
+      }
     },
-    uploadFiles (files) {
-      const postFiles = Array.prototype.slice.call(files)
-      postFiles.forEach((file) => {
-        file.uid = getUid()
-        this.upload(file, postFiles)
-      })
+    uploadFiles(files) {
+      const postFiles = Array.prototype.slice.call(files);
+      postFiles
+        .map(file => {
+          file.uid = getUid();
+          return file;
+        })
+        .forEach(file => {
+          this.upload(file, postFiles);
+        });
     },
-    upload (file, fileList) {
+    upload(file, fileList) {
       if (!this.beforeUpload) {
         // always async in case use react state to keep fileList
-        return setTimeout(() => this.post(file), 0)
+        return setTimeout(() => this.post(file), 0);
       }
 
-      const before = this.beforeUpload(file, fileList)
+      const before = this.beforeUpload(file, fileList);
       if (before && before.then) {
-        before.then((processedFile) => {
-          const processedFileType = Object.prototype.toString.call(processedFile)
-          if (processedFileType === '[object File]' || processedFileType === '[object Blob]') {
-            this.post(processedFile)
-          } else {
-            this.post(file)
-          }
-        }).catch(e => {
-          console && console.log(e); // eslint-disable-line
-        })
+        before
+          .then(processedFile => {
+            const processedFileType = Object.prototype.toString.call(processedFile);
+            if (processedFileType === '[object File]' || processedFileType === '[object Blob]') {
+              return this.post(processedFile);
+            }
+            return this.post(file);
+          })
+          .catch(e => {
+            console && console.log(e); // eslint-disable-line
+          });
       } else if (before !== false) {
-        setTimeout(() => this.post(file), 0)
+        setTimeout(() => this.post(file), 0);
       }
     },
-    post (file) {
+    post(file) {
       if (!this._isMounted) {
-        return
+        return;
       }
-      let { data } = this.$props
-      if (typeof data === 'function') {
-        data = data(file)
-      }
-      const { uid } = file
-      const request = this.customRequest || defaultRequest
-      this.reqs[uid] = request({
-        action: this.action,
-        filename: this.name,
-        file,
-        data,
-        headers: this.headers,
-        withCredentials: this.withCredentials,
-        onProgress: e => {
-          this.$emit('progress', e, file)
-        },
-        onSuccess: (ret, xhr) => {
-          delete this.reqs[uid]
-          this.$emit('success', ret, file, xhr)
-        },
-        onError: (err, ret) => {
-          delete this.reqs[uid]
-          this.$emit('error', err, ret, file)
-        },
-      })
-      this.$emit('start', file)
+      const { $props: props } = this;
+      let { data } = props;
+      const { transformFile = originFile => originFile } = props;
+
+      new Promise(resolve => {
+        const { action } = this;
+        if (typeof action === 'function') {
+          return resolve(action(file));
+        }
+        resolve(action);
+      }).then(action => {
+        const { uid } = file;
+        const request = this.customRequest || defaultRequest;
+        const transform = Promise.resolve(transformFile(file)).catch(e => {
+          console.error(e); // eslint-disable-line no-console
+        });
+        transform.then(transformedFile => {
+          if (typeof data === 'function') {
+            data = data(file);
+          }
+
+          const requestOption = {
+            action,
+            filename: this.name,
+            data,
+            file: transformedFile,
+            headers: this.headers,
+            withCredentials: this.withCredentials,
+            method: props.method || 'post',
+            onProgress: e => {
+              this.$emit('progress', e, file);
+            },
+            onSuccess: (ret, xhr) => {
+              delete this.reqs[uid];
+              this.$emit('success', ret, file, xhr);
+            },
+            onError: (err, ret) => {
+              delete this.reqs[uid];
+              this.$emit('error', err, ret, file);
+            },
+          };
+          this.reqs[uid] = request(requestOption);
+          this.$emit('start', file);
+        });
+      });
     },
-    reset () {
+    reset() {
       this.setState({
         uid: getUid(),
-      })
+      });
     },
-    abort (file) {
-      const { reqs } = this
+    abort(file) {
+      const { reqs } = this;
       if (file) {
-        let uid = file
+        let uid = file;
         if (file && file.uid) {
-          uid = file.uid
+          uid = file.uid;
         }
-        if (reqs[uid]) {
-          reqs[uid].abort()
-          delete reqs[uid]
+        if (reqs[uid] && reqs[uid].abort) {
+          reqs[uid].abort();
         }
+        delete reqs[uid];
       } else {
-        Object.keys(reqs).forEach((uid) => {
-          if (reqs[uid]) {
-            reqs[uid].abort()
+        Object.keys(reqs).forEach(uid => {
+          if (reqs[uid] && reqs[uid].abort) {
+            reqs[uid].abort();
           }
 
-          delete reqs[uid]
-        })
+          delete reqs[uid];
+        });
       }
     },
   },
-  mounted () {
-    this.$nextTick(() => {
-      this._isMounted = true
-    })
-  },
-  beforeDestroy () {
-    this._isMounted = false
-    this.abort()
-  },
-  render () {
+
+  render() {
+    const { $props, $attrs } = this;
     const {
-      componentTag: Tag, prefixCls, disabled, multiple, accept,
-    } = this.$props
+      componentTag: Tag,
+      prefixCls,
+      disabled,
+      multiple,
+      accept,
+      directory,
+      openFileDialogOnClick,
+    } = $props;
     const cls = classNames({
       [prefixCls]: true,
       [`${prefixCls}-disabled`]: disabled,
-    })
-    const events = disabled ? {} : {
-      click: this.onClick,
-      keydown: this.onKeyDown,
-      drop: this.onFileDrop,
-      dragover: this.onFileDrop,
-    }
+    });
+    const events = disabled
+      ? {}
+      : {
+          click: openFileDialogOnClick ? this.onClick : () => {},
+          keydown: openFileDialogOnClick ? this.onKeyDown : () => {},
+          drop: this.onFileDrop,
+          dragover: this.onFileDrop,
+        };
     const tagProps = {
       on: {
+        ...getListeners(this),
         ...events,
-        ...this.$listeners,
       },
       attrs: {
         role: 'button',
         tabIndex: disabled ? null : '0',
       },
       class: cls,
-    }
+    };
     return (
-      <Tag
-        {...tagProps}
-      >
+      <Tag {...tagProps}>
         <input
-          type='file'
-          ref='fileInputRef'
+          id={$attrs.id}
+          type="file"
+          ref="fileInputRef"
+          onClick={e => e.stopPropagation()} // https://github.com/ant-design/ant-design/issues/19948
           key={this.uid}
           style={{ display: 'none' }}
           accept={accept}
+          directory={directory ? 'directory' : null}
+          webkitdirectory={directory ? 'webkitdirectory' : null}
           multiple={multiple}
           onChange={this.onChange}
         />
         {this.$slots.default}
       </Tag>
-    )
+    );
   },
-}
+};
 
-export default AjaxUploader
+export default AjaxUploader;

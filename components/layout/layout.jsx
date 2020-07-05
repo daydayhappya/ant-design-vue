@@ -1,98 +1,111 @@
-import PropTypes from '../_util/vue-types'
-import classNames from 'classnames'
-import { getOptionProps } from '../_util/props-util'
+import PropTypes from '../_util/vue-types';
+import classNames from 'classnames';
+import { getOptionProps, getListeners } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
 
 export const BasicProps = {
   prefixCls: PropTypes.string,
   hasSider: PropTypes.boolean,
-}
+  tagName: PropTypes.string,
+};
 
-function generator (props, name) {
-  return (BasicComponent) => {
+function generator({ suffixCls, tagName, name }) {
+  return BasicComponent => {
     return {
       name,
       props: BasicComponent.props,
-      render () {
-        const { prefixCls } = props
+      inject: {
+        configProvider: { default: () => ConfigConsumerProps },
+      },
+      render() {
+        const { prefixCls: customizePrefixCls } = this.$props;
+        const getPrefixCls = this.configProvider.getPrefixCls;
+        const prefixCls = getPrefixCls(suffixCls, customizePrefixCls);
+
         const basicComponentProps = {
           props: {
             prefixCls,
             ...getOptionProps(this),
+            tagName,
           },
-          on: this.$listeners,
-        }
-        return <BasicComponent {...basicComponentProps}>{this.$slots.default}</BasicComponent>
+          on: getListeners(this),
+        };
+        return <BasicComponent {...basicComponentProps}>{this.$slots.default}</BasicComponent>;
       },
-    }
-  }
+    };
+  };
 }
 
 const Basic = {
   props: BasicProps,
-  render () {
-    const { prefixCls, $slots, $listeners } = this
+  render() {
+    const { prefixCls, tagName: Tag, $slots } = this;
     const divProps = {
       class: prefixCls,
-      on: $listeners,
-    }
-    return (
-      <div {...divProps}>{$slots.default}</div>
-    )
+      on: getListeners(this),
+    };
+    return <Tag {...divProps}>{$slots.default}</Tag>;
   },
-}
+};
 
 const BasicLayout = {
   props: BasicProps,
-  data () {
+  data() {
     return {
       siders: [],
-    }
+    };
   },
-  provide () {
+  provide() {
     return {
       siderHook: {
-        addSider: (id) => {
-          this.siders = [...this.siders, id]
+        addSider: id => {
+          this.siders = [...this.siders, id];
         },
-        removeSider: (id) => {
-          this.siders = this.siders.filter(currentId => currentId !== id)
+        removeSider: id => {
+          this.siders = this.siders.filter(currentId => currentId !== id);
         },
       },
-    }
+    };
   },
-  render () {
-    const { prefixCls, $slots, hasSider, $listeners } = this
+  render() {
+    const { prefixCls, $slots, hasSider, tagName: Tag } = this;
     const divCls = classNames(prefixCls, {
-      [`${prefixCls}-has-sider`]: hasSider || this.siders.length > 0,
-    })
+      [`${prefixCls}-has-sider`]: typeof hasSider === 'boolean' ? hasSider : this.siders.length > 0,
+    });
     const divProps = {
       class: divCls,
-      on: $listeners,
-    }
-    return (
-      <div {...divProps}>{$slots.default}</div>
-    )
+      on: getListeners,
+    };
+    return <Tag {...divProps}>{$slots.default}</Tag>;
   },
-}
+};
 
 const Layout = generator({
-  prefixCls: 'ant-layout',
-}, 'ALayout')(BasicLayout)
+  suffixCls: 'layout',
+  tagName: 'section',
+  name: 'ALayout',
+})(BasicLayout);
 
 const Header = generator({
-  prefixCls: 'ant-layout-header',
-}, 'ALayoutHeader')(Basic)
+  suffixCls: 'layout-header',
+  tagName: 'header',
+  name: 'ALayoutHeader',
+})(Basic);
 
 const Footer = generator({
-  prefixCls: 'ant-layout-footer',
-}, 'ALayoutFooter')(Basic)
+  suffixCls: 'layout-footer',
+  tagName: 'footer',
+  name: 'ALayoutFooter',
+})(Basic);
 
 const Content = generator({
-  prefixCls: 'ant-layout-content',
-}, 'ALayoutContent')(Basic)
+  suffixCls: 'layout-content',
+  tagName: 'main',
+  name: 'ALayoutContent',
+})(Basic);
 
-Layout.Header = Header
-Layout.Footer = Footer
-Layout.Content = Content
+Layout.Header = Header;
+Layout.Footer = Footer;
+Layout.Content = Content;
 
-export default Layout
+export default Layout;

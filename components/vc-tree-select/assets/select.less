@@ -1,7 +1,7 @@
 @selectPrefixCls: rc-tree-select;
 
 .effect() {
-  animation-duration: .3s;
+  animation-duration: 0.3s;
   animation-fill-mode: both;
   transform-origin: 0 0;
 }
@@ -19,7 +19,8 @@
     }
   }
 
-  ul, li {
+  ul,
+  li {
     margin: 0;
     padding: 0;
     list-style: none;
@@ -37,7 +38,8 @@
     top: 1px;
     right: 1px;
     width: 20px;
-    b {
+    &:after {
+      content: '';
       border-color: #999999 transparent transparent transparent;
       border-style: solid;
       border-width: 5px 4px 0 4px;
@@ -66,20 +68,26 @@
     &__clear {
       font-weight: bold;
       position: absolute;
-
-      &:after {
-        content: '×'
-      }
     }
   }
 
-  &-enabled &-selection {
-    &:hover {
-      border-color: #23c0fa;
-      box-shadow: 0 0 2px fadeout(#2db7f5, 20%);
+  &-enabled {
+    .@{selectPrefixCls}-selection {
+      &:hover {
+        border-color: #23c0fa;
+        box-shadow: 0 0 2px fadeout(#2db7f5, 20%);
+      }
+      &:active {
+        border-color: #2db7f5;
+      }
     }
-    &:active {
-      border-color: #2db7f5;
+
+    &.@{selectPrefixCls}-focused {
+      .@{selectPrefixCls}-selection {
+        //border-color: #23c0fa;
+        border-color: #7700fa;
+        box-shadow: 0 0 2px fadeout(#2db7f5, 20%);
+      }
     }
   }
 
@@ -105,6 +113,9 @@
     .@{selectPrefixCls}-selection__clear {
       top: 5px;
       right: 20px;
+      &:after {
+        content: '×';
+      }
     }
   }
 
@@ -130,6 +141,7 @@
   }
 
   &-search__field__placeholder {
+    display: block;
     position: absolute;
     top: 0;
     left: 3px;
@@ -198,9 +210,9 @@
     }
 
     .@{selectPrefixCls}-selection__clear {
-       top: 5px;
-       right: 8px;
-     }
+      top: 5px;
+      right: 8px;
+    }
   }
 
   &-enabled {
@@ -211,8 +223,8 @@
           opacity: 1;
           transform: scale(1);
         }
-        .@{selectPrefixCls}-selection__choice__remove +
-        .@{selectPrefixCls}-selection__choice__content {
+        .@{selectPrefixCls}-selection__choice__remove
+          + .@{selectPrefixCls}-selection__choice__content {
           margin-left: -8px;
           margin-right: 8px;
         }
@@ -228,15 +240,18 @@
     margin-right: 4px;
     position: relative;
     overflow: hidden;
-    transition: padding .3s cubic-bezier(0.6, -0.28, 0.735, 0.045), width .3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+    transition: padding 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045),
+      width 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
 
     &__content {
       margin-left: 0;
       margin-right: 0;
-      transition: margin .3s cubic-bezier(0.165, 0.84, 0.44, 1);
+      transition: margin 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
     }
 
-    &-zoom-enter, &-zoom-appear, &-zoom-leave {
+    &-zoom-enter,
+    &-zoom-appear,
+    &-zoom-leave {
       .effect();
       opacity: 0;
       animation-play-state: paused;
@@ -287,9 +302,10 @@
       transform: scale(0);
       top: 0;
       right: 2px;
-      transition: opacity .3s, transform .3s;
+      transition: opacity 0.3s, transform 0.3s;
+
       &:before {
-        content: '×'
+        content: '×';
       }
 
       &:hover {
@@ -379,7 +395,8 @@
       }
     }
 
-    &-slide-up-enter, &-slide-up-appear {
+    &-slide-up-enter,
+    &-slide-up-appear {
       .effect();
       opacity: 0;
       animation-timing-function: cubic-bezier(0.08, 0.82, 0.17, 1);
@@ -393,7 +410,8 @@
       animation-play-state: paused;
     }
 
-    &-slide-up-enter&-slide-up-enter-active&-placement-bottomLeft, &-slide-up-appear&-slide-up-appear-active&-placement-bottomLeft {
+    &-slide-up-enter&-slide-up-enter-active&-placement-bottomLeft,
+    &-slide-up-appear&-slide-up-appear-active&-placement-bottomLeft {
       animation-name: rcSelectDropdownSlideUpIn;
       animation-play-state: running;
     }
@@ -403,7 +421,8 @@
       animation-play-state: running;
     }
 
-    &-slide-up-enter&-slide-up-enter-active&-placement-topLeft, &-slide-up-appear&-slide-up-appear-active&-placement-topLeft {
+    &-slide-up-enter&-slide-up-enter-active&-placement-topLeft,
+    &-slide-up-appear&-slide-up-appear-active&-placement-topLeft {
       animation-name: rcSelectDropdownSlideDownIn;
       animation-play-state: running;
     }
@@ -487,7 +506,7 @@
   }
 
   &-open {
-    .@{selectPrefixCls}-arrow b {
+    .@{selectPrefixCls}-arrow:after {
       border-color: transparent transparent #888 transparent;
       border-width: 0 4px 5px 4px;
     }
@@ -496,5 +515,27 @@
   &-not-found {
     display: inline-block;
     padding: 8px;
+  }
+}
+
+.custom-icon-demo {
+  .@{selectPrefixCls} {
+    &-selection__choice__remove {
+      &:before {
+        content: '';
+      }
+    }
+
+    &-arrow {
+      &:after {
+        display: none;
+      }
+    }
+
+    &-selection__clear {
+      &:after {
+        content: '';
+      }
+    }
   }
 }

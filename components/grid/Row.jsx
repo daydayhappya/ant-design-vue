@@ -1,150 +1,108 @@
-
-import PropTypes from '../_util/vue-types'
-import BaseMixin from '../_util/BaseMixin'
-import { cloneElement } from '../_util/vnode'
-import { isEmptyElement, getStyle, getOptionProps } from '../_util/props-util'
-// matchMedia polyfill for
-// https://github.com/WickyNilliams/enquire.js/issues/82
-let enquire = null
-if (typeof window !== 'undefined') {
-  const matchMediaPolyfill = (mediaQuery) => {
-    return {
-      media: mediaQuery,
-      matches: false,
-      addListener () {
-      },
-      removeListener () {
-      },
-    }
-  }
-  window.matchMedia = window.matchMedia || matchMediaPolyfill
-  enquire = require('enquire.js')
-}
-
-const BreakpointMap = PropTypes.shape({
-  xs: PropTypes.string,
-  sm: PropTypes.string,
-  md: PropTypes.string,
-  lg: PropTypes.string,
-  xl: PropTypes.string,
-  xxl: PropTypes.strin,
-}).loose
+import PropTypes from '../_util/vue-types';
+import BaseMixin from '../_util/BaseMixin';
+import { ConfigConsumerProps } from '../config-provider';
+import ResponsiveObserve from '../_util/responsiveObserve';
 
 const RowProps = {
-  gutter: PropTypes.oneOfType([PropTypes.number, BreakpointMap]),
+  gutter: PropTypes.oneOfType([PropTypes.object, PropTypes.number, PropTypes.array]),
   type: PropTypes.oneOf(['flex']),
-  align: PropTypes.oneOf(['top', 'middle', 'bottom']),
+  align: PropTypes.oneOf(['top', 'middle', 'bottom', 'stretch']),
   justify: PropTypes.oneOf(['start', 'end', 'center', 'space-around', 'space-between']),
   prefixCls: PropTypes.string,
-}
+};
 
-const responsiveArray = ['xxl', 'xl', 'lg', 'md', 'sm', 'xs']
-
-const responsiveMap = {
-  xs: '(max-width: 575px)',
-  sm: '(min-width: 576px)',
-  md: '(min-width: 768px)',
-  lg: '(min-width: 992px)',
-  xl: '(min-width: 1200px)',
-  xxl: '(min-width: 1600px)',
-}
+const responsiveArray = ['xxl', 'xl', 'lg', 'md', 'sm', 'xs'];
 
 export default {
   name: 'ARow',
   mixins: [BaseMixin],
   props: {
     ...RowProps,
-    gutter: PropTypes.oneOfType([PropTypes.number, BreakpointMap]).def(0),
+    gutter: PropTypes.oneOfType([PropTypes.object, PropTypes.number, PropTypes.array]).def(0),
   },
-  data () {
+  provide() {
+    return {
+      rowContext: this,
+    };
+  },
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
     return {
       screens: {},
-    }
+    };
   },
 
-  mounted () {
+  mounted() {
     this.$nextTick(() => {
-      Object.keys(responsiveMap)
-        .map((screen) => enquire.register(responsiveMap[screen], {
-          match: () => {
-            if (typeof this.gutter !== 'object') {
-              return
-            }
-            this.setState((prevState) => ({
-              screens: {
-                ...prevState.screens,
-                [screen]: true,
-              },
-            }))
-          },
-          unmatch: () => {
-            if (typeof this.gutter !== 'object') {
-              return
-            }
-            this.setState((prevState) => ({
-              screens: {
-                ...prevState.screens,
-                [screen]: false,
-              },
-            }))
-          },
-          // Keep a empty destory to avoid triggering unmatch when unregister
-          destroy () {},
-        },
-        ))
-    })
+      this.token = ResponsiveObserve.subscribe(screens => {
+        const { gutter } = this;
+        if (
+          typeof gutter === 'object' ||
+          (Array.isArray(gutter) &&
+            (typeof gutter[0] === 'object' || typeof gutter[1] === 'object'))
+        ) {
+          this.screens = screens;
+        }
+      });
+    });
   },
-  beforeDestroy () {
-    Object.keys(responsiveMap)
-      .map((screen) => enquire.unregister(responsiveMap[screen]))
+  beforeDestroy() {
+    ResponsiveObserve.unsubscribe(this.token);
   },
   methods: {
-    getGutter () {
-      const { gutter } = this
-      if (typeof gutter === 'object') {
-        for (let i = 0; i <= responsiveArray.length; i++) {
-          const breakpoint = responsiveArray[i]
-          if (this.state.screens[breakpoint] && gutter[breakpoint] !== undefined) {
-            return gutter[breakpoint]
+    getGutter() {
+      const results = [0, 0];
+      const { gutter, screens } = this;
+      const normalizedGutter = Array.isArray(gutter) ? gutter : [gutter, 0];
+      normalizedGutter.forEach((g, index) => {
+        if (typeof g === 'object') {
+          for (let i = 0; i < responsiveArray.length; i++) {
+            const breakpoint = responsiveArray[i];
+            if (screens[breakpoint] && g[breakpoint] !== undefined) {
+              results[index] = g[breakpoint];
+              break;
+            }
           }
+        } else {
+          results[index] = g || 0;
         }
-      }
-      return gutter
+      });
+      return results;
     },
   },
 
-  render () {
-    const {
-      type, justify, align,
-      prefixCls = 'ant-row', $slots,
-    } = this
-    const gutter = this.getGutter()
+  render() {
+    const { type, justify, align, prefixCls: customizePrefixCls, $slots } = this;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('row', customizePrefixCls);
+
+    const gutter = this.getGutter();
     const classes = {
       [prefixCls]: !type,
       [`${prefixCls}-${type}`]: type,
       [`${prefixCls}-${type}-${justify}`]: type && justify,
       [`${prefixCls}-${type}-${align}`]: type && align,
-    }
-    const rowStyle = gutter > 0 ? {
-      marginLeft: `${gutter / -2}px`,
-      marginRight: `${gutter / -2}px`,
-    } : {}
-    const cols = ($slots.default || []).map((col) => {
-      if (isEmptyElement(col)) {
-        return null
-      }
-      if (getOptionProps(col) && gutter > 0) {
-        return cloneElement(col, {
-          style: {
-            paddingLeft: `${gutter / 2}px`,
-            paddingRight: `${gutter / 2}px`,
-            ...getStyle(col, true),
-          },
-        })
-      }
-      return col
-    })
-    return <div class={classes} style={rowStyle}>{cols}</div>
+    };
+    const rowStyle = {
+      ...(gutter[0] > 0
+        ? {
+            marginLeft: `${gutter[0] / -2}px`,
+            marginRight: `${gutter[0] / -2}px`,
+          }
+        : {}),
+      ...(gutter[1] > 0
+        ? {
+            marginTop: `${gutter[1] / -2}px`,
+            marginBottom: `${gutter[1] / -2}px`,
+          }
+        : {}),
+    };
+    return (
+      <div class={classes} style={rowStyle}>
+        {$slots.default}
+      </div>
+    );
   },
-}
-
+};

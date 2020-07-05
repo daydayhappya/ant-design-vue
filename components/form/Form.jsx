@@ -1,18 +1,25 @@
-import PropTypes from '../_util/vue-types'
-import classNames from 'classnames'
-import isRegExp from 'lodash/isRegExp'
-import createDOMForm from '../vc-form/src/createDOMForm'
-import createFormField from '../vc-form/src/createFormField'
-import FormItem from './FormItem'
-import { FIELD_META_PROP, FIELD_DATA_PROP } from './constants'
-import { initDefaultProps } from '../_util/props-util'
+import PropTypes from '../_util/vue-types';
+import classNames from 'classnames';
+import { ColProps } from '../grid/Col';
+import Vue from 'vue';
+import isRegExp from 'lodash/isRegExp';
+import warning from '../_util/warning';
+import createDOMForm from '../vc-form/src/createDOMForm';
+import createFormField from '../vc-form/src/createFormField';
+import FormItem from './FormItem';
+import { FIELD_META_PROP, FIELD_DATA_PROP } from './constants';
+import { initDefaultProps, getListeners } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+import Base from '../base';
 
 export const FormCreateOption = {
   onFieldsChange: PropTypes.func,
   onValuesChange: PropTypes.func,
   mapPropsToFields: PropTypes.func,
+  validateMessages: PropTypes.any,
   withRef: PropTypes.bool,
-}
+  name: PropTypes.string,
+};
 
 // function create
 export const WrappedFormUtils = {
@@ -49,17 +56,22 @@ export const WrappedFormUtils = {
   resetFields: PropTypes.func,
 
   getFieldDecorator: PropTypes.func,
-}
+};
 
 export const FormProps = {
   layout: PropTypes.oneOf(['horizontal', 'inline', 'vertical']),
-  form: PropTypes.shape(WrappedFormUtils).loose,
+  labelCol: PropTypes.shape(ColProps).loose,
+  wrapperCol: PropTypes.shape(ColProps).loose,
+  colon: PropTypes.bool,
+  labelAlign: PropTypes.oneOf(['left', 'right']),
+  form: PropTypes.object,
   // onSubmit: React.FormEventHandler<any>;
   prefixCls: PropTypes.string,
   hideRequiredMark: PropTypes.bool,
   autoFormCreate: PropTypes.func,
   options: PropTypes.object,
-}
+  selfUpdate: PropTypes.bool,
+};
 
 export const ValidationRule = {
   /** validation error message */
@@ -84,7 +96,7 @@ export const ValidationRule = {
   transform: PropTypes.func,
   /** custom validate function (Note: callback must be called) */
   validator: PropTypes.func,
-}
+};
 
 // export type ValidateCallback = (errors: any, values: any) => void;
 
@@ -97,6 +109,8 @@ export const ValidationRule = {
 //   trigger?: string;
 //   /** 可以把 onChange 的参数转化为控件的值，例如 DatePicker 可设为：(date, dateString) => dateString */
 //   getValueFromEvent?: (...args: any[]) => any;
+//   /** Get the component props according to field value. */
+//   getValueProps?: (value: any) => any;
 //   /** 校验子节点值的时机 */
 //   validateTrigger?: string | string[];
 //   /** 校验规则，参见 [async-validator](https://github.com/yiminghe/async-validator) */
@@ -107,109 +121,168 @@ export const ValidationRule = {
 //   normalize?: (value: any, prevValue: any, allValues: any) => any;
 //   /** Whether stop validate on first rule of error for this field.  */
 //   validateFirst?: boolean;
+//   /** 是否一直保留子节点的信息 */
+//   preserve?: boolean;
 // };
 
-export default {
+const Form = {
   name: 'AForm',
   props: initDefaultProps(FormProps, {
-    prefixCls: 'ant-form',
     layout: 'horizontal',
     hideRequiredMark: false,
+    colon: true,
   }),
-  // static defaultProps = {
-  //   prefixCls: 'ant-form',
-  //   layout: 'horizontal',
-  //   hideRequiredMark: false,
-  //   onSubmit (e) {
-  //     e.preventDefault()
-  //   },
-  // };
-
-  // static propTypes = {
-  //   prefixCls: PropTypes.string,
-  //   layout: PropTypes.oneOf(['horizontal', 'inline', 'vertical']),
-  //   children: PropTypes.any,
-  //   onSubmit: PropTypes.func,
-  //   hideRequiredMark: PropTypes.bool,
-  // };
-
   Item: FormItem,
-
-  createFormField: createFormField,
-
+  createFormField,
   create: (options = {}) => {
     return createDOMForm({
       fieldNameProp: 'id',
       ...options,
       fieldMetaProp: FIELD_META_PROP,
       fieldDataProp: FIELD_DATA_PROP,
-    })
+    });
   },
-  provide () {
+  createForm(context, options = {}) {
+    const V = Base.Vue || Vue;
+    return new V(Form.create({ ...options, templateContext: context })());
+  },
+  created() {
+    this.formItemContexts = new Map();
+  },
+  provide() {
     return {
-      FormProps: this.$props,
+      FormContext: this,
+      // https://github.com/vueComponent/ant-design-vue/issues/446
+      collectFormItemContext:
+        this.form && this.form.templateContext
+          ? (c, type = 'add') => {
+              const formItemContexts = this.formItemContexts;
+              const number = formItemContexts.get(c) || 0;
+              if (type === 'delete') {
+                if (number <= 1) {
+                  formItemContexts.delete(c);
+                } else {
+                  formItemContexts.set(c, number - 1);
+                }
+              } else {
+                if (c !== this.form.templateContext) {
+                  formItemContexts.set(c, number + 1);
+                }
+              }
+            }
+          : () => {},
+    };
+  },
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  watch: {
+    form() {
+      this.$forceUpdate();
+    },
+  },
+  computed: {
+    vertical() {
+      return this.layout === 'vertical';
+    },
+  },
+  beforeUpdate() {
+    this.formItemContexts.forEach((number, c) => {
+      if (c.$forceUpdate) {
+        c.$forceUpdate();
+      }
+    });
+  },
+  updated() {
+    if (this.form && this.form.cleanUpUselessFields) {
+      this.form.cleanUpUselessFields();
     }
   },
   methods: {
-    onSubmit (e) {
-      const { $listeners } = this
-      if (!$listeners.submit) {
-        e.preventDefault()
+    onSubmit(e) {
+      if (!getListeners(this).submit) {
+        e.preventDefault();
       } else {
-        this.$emit('submit', e)
+        this.$emit('submit', e);
       }
     },
   },
 
-  render () {
+  render() {
     const {
-      prefixCls, hideRequiredMark, layout, onSubmit, $slots, autoFormCreate, options = {},
-    } = this
+      prefixCls: customizePrefixCls,
+      hideRequiredMark,
+      layout,
+      onSubmit,
+      $slots,
+      autoFormCreate,
+      options = {},
+    } = this;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('form', customizePrefixCls);
 
     const formClassName = classNames(prefixCls, {
       [`${prefixCls}-horizontal`]: layout === 'horizontal',
       [`${prefixCls}-vertical`]: layout === 'vertical',
       [`${prefixCls}-inline`]: layout === 'inline',
       [`${prefixCls}-hide-required-mark`]: hideRequiredMark,
-    })
+    });
     if (autoFormCreate) {
-      const DomForm = this.DomForm || createDOMForm({
-        fieldNameProp: 'id',
-        ...options,
-        fieldMetaProp: FIELD_META_PROP,
-        fieldDataProp: FIELD_DATA_PROP,
-        templateContext: this.$vnode.context,
-      })({
-        provide () {
-          return {
-            decoratorFormProps: this.$props,
-          }
-        },
-        data () {
-          return {
-            children: $slots.default,
-            formClassName: formClassName,
-            submit: onSubmit,
-          }
-        },
-        created () {
-          autoFormCreate(this.form)
-        },
-        render () {
-          const { children, formClassName, submit } = this
-          return <form onSubmit={submit} class={formClassName}>{children}</form>
-        },
-      })
+      warning(false, 'Form', '`autoFormCreate` is deprecated. please use `form` instead.');
+      const DomForm =
+        this.DomForm ||
+        createDOMForm({
+          fieldNameProp: 'id',
+          ...options,
+          fieldMetaProp: FIELD_META_PROP,
+          fieldDataProp: FIELD_DATA_PROP,
+          templateContext: this.$vnode.context,
+        })({
+          provide() {
+            return {
+              decoratorFormProps: this.$props,
+            };
+          },
+          data() {
+            return {
+              children: $slots.default,
+              formClassName,
+              submit: onSubmit,
+            };
+          },
+          created() {
+            autoFormCreate(this.form);
+          },
+          render() {
+            const { children, formClassName, submit } = this;
+            return (
+              <form onSubmit={submit} class={formClassName}>
+                {children}
+              </form>
+            );
+          },
+        });
       if (this.domForm) {
-        this.domForm.children = $slots.default
-        this.domForm.submit = onSubmit
-        this.domForm.formClassName = formClassName
+        this.domForm.children = $slots.default;
+        this.domForm.submit = onSubmit;
+        this.domForm.formClassName = formClassName;
       }
-      this.DomForm = DomForm
+      this.DomForm = DomForm;
 
-      return <DomForm wrappedComponentRef={(inst) => { this.domForm = inst }}/>
+      return (
+        <DomForm
+          wrappedComponentRef={inst => {
+            this.domForm = inst;
+          }}
+        />
+      );
     }
-
-    return <form onSubmit={onSubmit} class={formClassName}>{$slots.default}</form>
+    return (
+      <form onSubmit={onSubmit} class={formClassName}>
+        {$slots.default}
+      </form>
+    );
   },
-}
+};
+
+export default Form;

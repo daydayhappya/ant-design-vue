@@ -62,10 +62,13 @@ typings/
 dist
 lib
 es
-site-dist
+_site
 yarn.lock
 package-lock.json
 /coverage
 
 # 备份文件
 /components/test/*
+list.txt
+
+site/dev.js

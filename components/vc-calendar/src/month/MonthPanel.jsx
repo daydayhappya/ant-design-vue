@@ -1,20 +1,16 @@
+import PropTypes from '../../../_util/vue-types';
+import BaseMixin from '../../../_util/BaseMixin';
+import { hasProp, getListeners } from '../../../_util/props-util';
+import MonthTable from './MonthTable';
 
-import PropTypes from '../../../_util/vue-types'
-import BaseMixin from '../../../_util/BaseMixin'
-import { hasProp } from '../../../_util/props-util'
-import MonthTable from './MonthTable'
-
-function goYear (direction) {
-  const next = this.sValue.clone()
-  next.add(direction, 'year')
-  this.setAndChangeValue(next)
+function goYear(direction) {
+  this.changeYear(direction);
 }
 
-function noop () {
-
-}
+function noop() {}
 
 const MonthPanel = {
+  name: 'MonthPanel',
   mixins: [BaseMixin],
   props: {
     value: PropTypes.any,
@@ -26,63 +22,70 @@ const MonthPanel = {
     // onChange: PropTypes.func,
     disabledDate: PropTypes.func,
     // onSelect: PropTypes.func,
+    renderFooter: PropTypes.func,
+    changeYear: PropTypes.func.def(noop),
   },
 
-  data () {
-    const { value, defaultValue } = this
+  data() {
+    const { value, defaultValue } = this;
     // bind methods
-    this.nextYear = goYear.bind(this, 1)
-    this.previousYear = goYear.bind(this, -1)
+    this.nextYear = goYear.bind(this, 1);
+    this.previousYear = goYear.bind(this, -1);
     return {
       sValue: value || defaultValue,
-    }
+    };
   },
   watch: {
-    value (val) {
+    value(val) {
       this.setState({
         sValue: val,
-      })
+      });
     },
   },
   methods: {
-    setAndChangeValue (value) {
-      this.setValue(value)
-      this.__emit('change', value)
+    setAndSelectValue(value) {
+      this.setValue(value);
+      this.__emit('select', value);
     },
 
-    setAndSelectValue (value) {
-      this.setValue(value)
-      this.__emit('select', value)
-    },
-
-    setValue (value) {
-      if (!hasProp(this, 'value')) {
+    setValue(value) {
+      if (hasProp(this, 'value')) {
         this.setState({
           sValue: value,
-        })
+        });
       }
     },
   },
 
-  render () {
-    const { sValue, cellRender, contentRender, locale, rootPrefixCls, disabledDate, $listeners = {}} = this
-    const year = sValue.year()
-    const prefixCls = `${rootPrefixCls}-month-panel`
+  render() {
+    const {
+      sValue,
+      cellRender,
+      contentRender,
+      locale,
+      rootPrefixCls,
+      disabledDate,
+      renderFooter,
+    } = this;
+    const year = sValue.year();
+    const prefixCls = `${rootPrefixCls}-month-panel`;
+
+    const footer = renderFooter && renderFooter('month');
     return (
       <div class={prefixCls}>
         <div>
           <div class={`${prefixCls}-header`}>
             <a
               class={`${prefixCls}-prev-year-btn`}
-              role='button'
+              role="button"
               onClick={this.previousYear}
               title={locale.previousYear}
             />
 
             <a
               class={`${prefixCls}-year-select`}
-              role='button'
-              onClick={$listeners.yearPanelShow || noop}
+              role="button"
+              onClick={getListeners(this).yearPanelShow || noop}
               title={locale.yearSelect}
             >
               <span class={`${prefixCls}-year-select-content`}>{year}</span>
@@ -91,7 +94,7 @@ const MonthPanel = {
 
             <a
               class={`${prefixCls}-next-year-btn`}
-              role='button'
+              role="button"
               onClick={this.nextYear}
               title={locale.nextYear}
             />
@@ -107,10 +110,11 @@ const MonthPanel = {
               prefixCls={prefixCls}
             />
           </div>
+          {footer && <div class={`${prefixCls}-footer`}>{footer}</div>}
         </div>
-      </div>)
+      </div>
+    );
   },
-}
+};
 
-export default MonthPanel
-
+export default MonthPanel;

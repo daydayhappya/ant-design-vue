@@ -1,41 +1,86 @@
-import { mount } from '@vue/test-utils'
-import Card from '../index'
-
-const testMethod = typeof window !== 'undefined' ? it : xit
+import { mount } from '@vue/test-utils';
+import Card from '../index';
+import Button from '../../button/index';
+import mountTest from '../../../tests/shared/mountTest';
 
 describe('Card', () => {
+  mountTest(Card);
   beforeAll(() => {
-    jest.useFakeTimers()
-  })
+    jest.useFakeTimers();
+  });
 
   afterAll(() => {
-    jest.useRealTimers()
-  })
-
-  function fakeResizeWindowTo (wrapper, width) {
-    Object.defineProperties(wrapper.vm.$refs.cardContainerRef, {
-      offsetWidth: {
-        get () { return width },
-        configurable: true,
+    jest.useRealTimers();
+  });
+  it('should still have padding when card which set padding to 0 is loading', () => {
+    const wrapper = mount({
+      render() {
+        return (
+          <Card loading bodyStyle={{ padding: 0 }}>
+            xxx
+          </Card>
+        );
       },
-    })
-    window.resizeTo(width)
-  }
+    });
+    expect(wrapper.html()).toMatchSnapshot();
+  });
 
-  testMethod('resize card will trigger different padding', () => {
-    const wrapper = mount(Card, {
-      propsData: 'xxx',
-      slots: {
-        default: 'xxx',
+  it('title should be vertically aligned', () => {
+    const wrapper = mount({
+      render() {
+        return (
+          <Card title="Card title" extra={<Button>Button</Button>} style={{ width: '300px' }}>
+            <p>Card content</p>
+          </Card>
+        );
       },
-    })
-    fakeResizeWindowTo(wrapper, 1000)
-    jest.runAllTimers()
-    wrapper.vm.$forceUpdate()
-    expect(wrapper.findAll('.ant-card-wider-padding').length).toBe(1)
-    fakeResizeWindowTo(wrapper, 800)
-    jest.runAllTimers()
-    wrapper.vm.$forceUpdate()
-    expect(wrapper.findAll('.ant-card-wider-padding').length).toBe(0)
-  })
-})
+    });
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it('onTabChange should work', () => {
+    const tabList = [
+      {
+        key: 'tab1',
+        tab: 'tab1',
+      },
+      {
+        key: 'tab2',
+        tab: 'tab2',
+      },
+    ];
+    const onTabChange = jest.fn();
+    const wrapper = mount(
+      {
+        render() {
+          return (
+            <Card onTabChange={onTabChange} tabList={tabList}>
+              xxx
+            </Card>
+          );
+        },
+      },
+      {
+        sync: false,
+      },
+    );
+    wrapper
+      .findAll('.ant-tabs-tab')
+      .at(1)
+      .trigger('click');
+    expect(onTabChange).toHaveBeenCalledWith('tab2');
+  });
+
+  it('should not render when actions is number', () => {
+    const wrapper = mount({
+      render() {
+        return (
+          <Card title="Card title" actions={11}>
+            <p>Card content</p>
+          </Card>
+        );
+      },
+    });
+    expect(wrapper.findAll('.ant-card-actions').length).toBe(0);
+  });
+});

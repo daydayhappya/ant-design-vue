@@ -1,99 +1,171 @@
-
-import Icon from '../icon'
+import { ConfigConsumerProps } from '../config-provider';
+import Icon from '../icon';
+import { getListeners, getComponentFromProp } from '../_util/props-util';
+import PropTypes from '../_util/vue-types';
 
 export default {
   name: 'AAvatar',
   props: {
     prefixCls: {
       type: String,
-      default: 'ant-avatar',
+      default: undefined,
     },
     shape: {
-      validator: (val) => (['circle', 'square'].includes(val)),
+      validator: val => ['circle', 'square'].includes(val),
       default: 'circle',
     },
     size: {
-      validator: (val) => (['small', 'large', 'default'].includes(val)),
+      validator: val => {
+        return typeof val === 'number' || ['small', 'large', 'default'].includes(val);
+      },
       default: 'default',
     },
     src: String,
-    icon: String,
+    /** Srcset of image avatar */
+    srcSet: String,
+    icon: PropTypes.any,
+    alt: String,
+    loadError: Function,
   },
-  data () {
+  inject: {
+    configProvider: { default: () => ConfigConsumerProps },
+  },
+  data() {
     return {
-      isExistSlot: false,
-      childrenWidth: 0,
+      isImgExist: true,
+      isMounted: false,
       scale: 1,
-    }
+    };
   },
-  computed: {
-    classes () {
-      const { prefixCls, shape, size, src, icon } = this
-      return {
-        [`${prefixCls}`]: true,
-        [`${prefixCls}-image`]: !!src,
-        [`${prefixCls}-icon`]: !!icon,
-        [`${prefixCls}-${shape}`]: true,
-        [`${prefixCls}-lg`]: size === 'large',
-        [`${prefixCls}-sm`]: size === 'small',
-      }
+  watch: {
+    src() {
+      this.$nextTick(() => {
+        this.isImgExist = true;
+        this.scale = 1;
+        // force uodate for position
+        this.$forceUpdate();
+      });
     },
-    childrenStyle () {
-      let style = {}
-      const { scale, isExistSlot, childrenWidth } = this
-      if (isExistSlot) {
-        style = {
-          msTransform: `scale(${scale})`,
-          WebkitTransform: `scale(${scale})`,
-          transform: `scale(${scale})`,
-          position: 'absolute',
-          display: 'inline-block',
-          left: `calc(50% - ${Math.round(childrenWidth / 2)}px)`,
-        }
-      }
-      return style
-    },
+  },
+  mounted() {
+    this.$nextTick(() => {
+      this.setScale();
+      this.isMounted = true;
+    });
+  },
+  updated() {
+    this.$nextTick(() => {
+      this.setScale();
+    });
   },
   methods: {
-    setScale () {
-      const { src, icon, $refs, $el } = this
-      const children = $refs.avatorChildren
-      this.isExistSlot = !src && !icon
-      if (children) {
-        this.childrenWidth = children.offsetWidth
-        const avatarWidth = $el.getBoundingClientRect().width
-        if (avatarWidth - 8 < this.childrenWidth) {
-          this.scale = (avatarWidth - 8) / this.childrenWidth
-        } else {
-          this.scale = 1
-        }
+    setScale() {
+      if (!this.$refs.avatarChildren || !this.$refs.avatarNode) {
+        return;
+      }
+      const childrenWidth = this.$refs.avatarChildren.offsetWidth; // offsetWidth avoid affecting be transform scale
+      const nodeWidth = this.$refs.avatarNode.offsetWidth;
+      // denominator is 0 is no meaning
+      if (
+        childrenWidth === 0 ||
+        nodeWidth === 0 ||
+        (this.lastChildrenWidth === childrenWidth && this.lastNodeWidth === nodeWidth)
+      ) {
+        return;
+      }
+      this.lastChildrenWidth = childrenWidth;
+      this.lastNodeWidth = nodeWidth;
+      // add 4px gap for each side to get better performance
+      this.scale = nodeWidth - 8 < childrenWidth ? (nodeWidth - 8) / childrenWidth : 1;
+    },
+    handleImgLoadError() {
+      const { loadError } = this.$props;
+      const errorFlag = loadError ? loadError() : undefined;
+      if (errorFlag !== false) {
+        this.isImgExist = false;
       }
     },
   },
-  mounted () {
-    this.$nextTick(() => {
-      this.setScale()
-    })
-  },
-  updated () {
-    this.$nextTick(() => {
-      this.setScale()
-    })
-  },
-  render () {
-    const { classes, prefixCls, src, icon, childrenStyle, $slots } = this
-    return (
-      <span class={classes}>
-        {src ? <img src={src}/>
-          : (icon ? <Icon type={icon} />
-            : <span
-              ref='avatorChildren'
-              class={prefixCls + '-string'}
-              style={childrenStyle}>
-              {$slots.default}
-            </span>) }
-      </span>
-    )
-  },
-}
+  render() {
+    const { prefixCls: customizePrefixCls, shape, size, src, alt, srcSet } = this.$props;
+    const icon = getComponentFromProp(this, 'icon');
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('avatar', customizePrefixCls);
 
+    const { isImgExist, scale, isMounted } = this.$data;
+
+    const sizeCls = {
+      [`${prefixCls}-lg`]: size === 'large',
+      [`${prefixCls}-sm`]: size === 'small',
+    };
+
+    const classString = {
+      [prefixCls]: true,
+      ...sizeCls,
+      [`${prefixCls}-${shape}`]: shape,
+      [`${prefixCls}-image`]: src && isImgExist,
+      [`${prefixCls}-icon`]: icon,
+    };
+
+    const sizeStyle =
+      typeof size === 'number'
+        ? {
+            width: `${size}px`,
+            height: `${size}px`,
+            lineHeight: `${size}px`,
+            fontSize: icon ? `${size / 2}px` : '18px',
+          }
+        : {};
+
+    let children = this.$slots.default;
+    if (src && isImgExist) {
+      children = <img src={src} srcSet={srcSet} onError={this.handleImgLoadError} alt={alt} />;
+    } else if (icon) {
+      if (typeof icon === 'string') {
+        children = <Icon type={icon} />;
+      } else {
+        children = icon;
+      }
+    } else {
+      const childrenNode = this.$refs.avatarChildren;
+      if (childrenNode || scale !== 1) {
+        const transformString = `scale(${scale}) translateX(-50%)`;
+        const childrenStyle = {
+          msTransform: transformString,
+          WebkitTransform: transformString,
+          transform: transformString,
+        };
+        const sizeChildrenStyle =
+          typeof size === 'number'
+            ? {
+                lineHeight: `${size}px`,
+              }
+            : {};
+        children = (
+          <span
+            class={`${prefixCls}-string`}
+            ref="avatarChildren"
+            style={{ ...sizeChildrenStyle, ...childrenStyle }}
+          >
+            {children}
+          </span>
+        );
+      } else {
+        const childrenStyle = {};
+        if (!isMounted) {
+          childrenStyle.opacity = 0;
+        }
+        children = (
+          <span class={`${prefixCls}-string`} ref="avatarChildren" style={{ opacity: 0 }}>
+            {children}
+          </span>
+        );
+      }
+    }
+    return (
+      <span ref="avatarNode" {...{ on: getListeners(this), class: classString, style: sizeStyle }}>
+        {children}
+      </span>
+    );
+  },
+};

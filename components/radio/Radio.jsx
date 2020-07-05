@@ -1,12 +1,18 @@
-import PropTypes from '../_util/vue-types'
-import hasProp from '../_util/props-util'
+import PropTypes from '../_util/vue-types';
+import VcCheckbox from '../vc-checkbox';
+import classNames from 'classnames';
+import { getOptionProps, getAttrs, getListeners } from '../_util/props-util';
+import { ConfigConsumerProps } from '../config-provider';
+
+function noop() {}
+
 export default {
   name: 'ARadio',
+  model: {
+    prop: 'checked',
+  },
   props: {
-    prefixCls: {
-      default: 'ant-radio',
-      type: String,
-    },
+    prefixCls: PropTypes.string,
     defaultChecked: Boolean,
     checked: { type: Boolean, default: undefined },
     disabled: Boolean,
@@ -15,131 +21,66 @@ export default {
     name: String,
     id: String,
     autoFocus: Boolean,
-  },
-  model: {
-    prop: 'checked',
+    type: PropTypes.string.def('radio'),
   },
   inject: {
     radioGroupContext: { default: undefined },
-  },
-  data () {
-    const { radioGroupContext, checked, defaultChecked, value } = this
-    let stateChecked
-    if (radioGroupContext && radioGroupContext.stateValue !== undefined) {
-      stateChecked = radioGroupContext.stateValue === value
-    }
-    return {
-      stateChecked: stateChecked === undefined
-        ? !hasProp(this, 'checked') ? defaultChecked : checked
-        : stateChecked,
-    }
-  },
-  mounted () {
-    this.$nextTick(() => {
-      if (this.autoFocus) {
-        this.$refs.input.focus()
-      }
-    })
+    configProvider: { default: () => ConfigConsumerProps },
   },
   methods: {
-    handleChange (event) {
-      const targetChecked = event.target.checked
-      this.$emit('input', targetChecked)
-      const { name, value, radioGroupContext } = this
-      if ((!hasProp(this, 'checked') && !radioGroupContext) || (radioGroupContext && radioGroupContext.value === undefined)) {
-        this.stateChecked = targetChecked
+    focus() {
+      this.$refs.vcCheckbox.focus();
+    },
+    blur() {
+      this.$refs.vcCheckbox.blur();
+    },
+    handleChange(event) {
+      const targetChecked = event.target.checked;
+      this.$emit('input', targetChecked);
+      this.$emit('change', event);
+    },
+    onChange(e) {
+      this.$emit('change', e);
+      if (this.radioGroupContext && this.radioGroupContext.onRadioChange) {
+        this.radioGroupContext.onRadioChange(e);
       }
-      const target = {
-        name,
-        value,
-        checked: targetChecked,
-      }
-      if (this.radioGroupContext) {
-        this.radioGroupContext.handleChange({ target })
-      } else {
-        this.$emit('change', {
-          target,
-          stopPropagation () {
-            event.stopPropagation()
-          },
-          preventDefault () {
-            event.preventDefault()
-          },
-        })
-      }
-    },
-    focus () {
-      this.$refs.input.focus()
-    },
-    blur () {
-      this.$refs.input.blur()
-    },
-    onFocus (e) {
-      this.$emit('focus', e)
-    },
-    onBlur (e) {
-      this.$emit('blur', e)
-    },
-    onMouseEnter (e) {
-      this.$emit('mouseenter', e)
-    },
-    onMouseLeave (e) {
-      this.$emit('mouseleave', e)
     },
   },
-  watch: {
-    checked (val) {
-      this.stateChecked = val
-    },
-    'radioGroupContext.stateValue': function (stateValue) {
-      this.stateChecked = stateValue === this.value
-    },
-  },
-  render () {
-    const { id, prefixCls,
-      stateChecked, handleChange, $slots,
-      onFocus,
-      onBlur,
-      onMouseEnter,
-      onMouseLeave,
-      radioGroupContext,
-    } = this
-    let { name, disabled } = this
-    if (radioGroupContext) {
-      name = radioGroupContext.name
-      disabled = disabled || radioGroupContext.disabled
+
+  render() {
+    const { $slots, radioGroupContext: radioGroup } = this;
+    const props = getOptionProps(this);
+    const children = $slots.default;
+    const { mouseenter = noop, mouseleave = noop, ...restListeners } = getListeners(this);
+    const { prefixCls: customizePrefixCls, ...restProps } = props;
+    const getPrefixCls = this.configProvider.getPrefixCls;
+    const prefixCls = getPrefixCls('radio', customizePrefixCls);
+
+    const radioProps = {
+      props: { ...restProps, prefixCls },
+      on: restListeners,
+      attrs: getAttrs(this),
+    };
+
+    if (radioGroup) {
+      radioProps.props.name = radioGroup.name;
+      radioProps.on.change = this.onChange;
+      radioProps.props.checked = props.value === radioGroup.stateValue;
+      radioProps.props.disabled = props.disabled || radioGroup.disabled;
+    } else {
+      radioProps.on.change = this.handleChange;
     }
-    const wrapperClassString = {
+    const wrapperClassString = classNames({
       [`${prefixCls}-wrapper`]: true,
-      [`${prefixCls}-wrapper-checked`]: stateChecked,
-      [`${prefixCls}-wrapper-disabled`]: disabled,
-    }
-    const checkboxClass = {
-      [`${prefixCls}`]: true,
-      [`${prefixCls}-checked`]: stateChecked,
-      [`${prefixCls}-disabled`]: disabled,
-    }
+      [`${prefixCls}-wrapper-checked`]: radioProps.props.checked,
+      [`${prefixCls}-wrapper-disabled`]: radioProps.props.disabled,
+    });
 
     return (
-      <label
-        class={wrapperClassString}
-        onMouseenter={onMouseEnter}
-        onMouseleave={onMouseLeave}
-      >
-        <span class={checkboxClass}>
-          <input name={name} type='radio' disabled={disabled}
-            class={`${prefixCls}-input`} checked={stateChecked}
-            onChange={handleChange} id={id} ref='input'
-            onFocus={onFocus}
-            onBlur={onBlur}
-          />
-          <span class={`${prefixCls}-inner`} />
-        </span>
-        {$slots.default ? <span>
-          {$slots.default}
-        </span> : null}
+      <label class={wrapperClassString} onMouseenter={mouseenter} onMouseleave={mouseleave}>
+        <VcCheckbox {...radioProps} ref="vcCheckbox" />
+        {children !== undefined ? <span>{children}</span> : null}
       </label>
-    )
+    );
   },
-}
-
+};

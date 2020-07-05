@@ -1,27 +1,26 @@
+import PropTypes from '../_util/vue-types';
+import BaseMixin from '../_util/BaseMixin';
+import classnames from 'classnames';
+import raf from 'raf';
 
-import PropTypes from '../_util/vue-types'
-import BaseMixin from '../_util/BaseMixin'
-import classnames from 'classnames'
-function noop () {}
+function noop() {}
 const scrollTo = (element, to, duration) => {
-  const requestAnimationFrame = window.requestAnimationFrame ||
-    function requestAnimationFrameTimeout () {
-      return setTimeout(arguments[0], 10)
-    }
   // jump to target if duration zero
   if (duration <= 0) {
-    element.scrollTop = to
-    return
+    raf(() => {
+      element.scrollTop = to;
+    });
+    return;
   }
-  const difference = to - element.scrollTop
-  const perTick = difference / duration * 10
+  const difference = to - element.scrollTop;
+  const perTick = (difference / duration) * 10;
 
-  requestAnimationFrame(() => {
-    element.scrollTop = element.scrollTop + perTick
-    if (element.scrollTop === to) return
-    scrollTo(element, to, duration - 10)
-  })
-}
+  raf(() => {
+    element.scrollTop += perTick;
+    if (element.scrollTop === to) return;
+    scrollTo(element, to, duration - 10);
+  });
+};
 
 const Select = {
   mixins: [BaseMixin],
@@ -33,102 +32,109 @@ const Select = {
     // onSelect: PropTypes.func,
     // onMouseEnter: PropTypes.func,
   },
-  data () {
+  data() {
     return {
       active: false,
-    }
+    };
   },
 
-  mounted () {
+  mounted() {
     this.$nextTick(() => {
       // jump to selected option
-      this.scrollToSelected(0)
-    })
+      this.scrollToSelected(0);
+    });
   },
   watch: {
-    selectedIndex (val) {
+    selectedIndex() {
       this.$nextTick(() => {
         // smooth scroll to selected option
-        this.scrollToSelected(120)
-      })
+        this.scrollToSelected(120);
+      });
     },
   },
   methods: {
-    onSelect (value) {
-      const { type } = this
-      this.__emit('select', type, value)
+    onSelect(value) {
+      const { type } = this;
+      this.__emit('select', type, value);
     },
-
-    getOptions () {
-      const { options, selectedIndex, prefixCls } = this
+    onEsc(e) {
+      this.__emit('esc', e);
+    },
+    getOptions() {
+      const { options, selectedIndex, prefixCls } = this;
       return options.map((item, index) => {
         const cls = classnames({
           [`${prefixCls}-select-option-selected`]: selectedIndex === index,
           [`${prefixCls}-select-option-disabled`]: item.disabled,
-        })
-        let onClick = noop
-        if (!item.disabled) {
-          onClick = this.onSelect.bind(this, item.value)
-        }
-        return (<li
-          class={cls}
-          key={index}
-          onClick={onClick}
-          disabled={item.disabled}
-        >
-          {item.value}
-        </li>)
-      })
+        });
+        const onClick = item.disabled
+          ? noop
+          : () => {
+              this.onSelect(item.value);
+            };
+        const onKeyDown = e => {
+          if (e.keyCode === 13) onClick();
+          else if (e.keyCode === 27) this.onEsc();
+        };
+        return (
+          <li
+            role="button"
+            onClick={onClick}
+            class={cls}
+            key={index}
+            disabled={item.disabled}
+            tabIndex="0"
+            onKeydown={onKeyDown}
+          >
+            {item.value}
+          </li>
+        );
+      });
     },
 
-    scrollToSelected (duration) {
-    // move to selected item
-      const select = this.$el
-      const list = this.$refs.list
+    handleMouseEnter(e) {
+      this.setState({ active: true });
+      this.__emit('mouseenter', e);
+    },
+
+    handleMouseLeave() {
+      this.setState({ active: false });
+    },
+
+    scrollToSelected(duration) {
+      // move to selected item
+      const select = this.$el;
+      const list = this.$refs.list;
       if (!list) {
-        return
+        return;
       }
-      let index = this.selectedIndex
+      let index = this.selectedIndex;
       if (index < 0) {
-        index = 0
+        index = 0;
       }
-      const topOption = list.children[index]
-      const to = topOption.offsetTop
-      scrollTo(select, to, duration)
-    },
-
-    handleMouseEnter (e) {
-      this.setState({ active: true })
-      this.__emit('mouseenter', e)
-    },
-
-    handleMouseLeave () {
-      this.setState({ active: false })
+      const topOption = list.children[index];
+      const to = topOption.offsetTop;
+      scrollTo(select, to, duration);
     },
   },
 
-  render () {
-    if (this.options.length === 0) {
-      return null
+  render() {
+    const { prefixCls, options, active } = this;
+    if (options.length === 0) {
+      return null;
     }
 
-    const { prefixCls } = this
     const cls = {
       [`${prefixCls}-select`]: 1,
-      [`${prefixCls}-select-active`]: this.active,
-    }
+      [`${prefixCls}-select-active`]: active,
+    };
 
     return (
-      <div
-        class={cls}
-        onMouseenter={this.handleMouseEnter}
-        onMouseleave={this.handleMouseLeave}
-      >
-        <ul ref='list'>{this.getOptions()}</ul>
+      <div class={cls} onMouseenter={this.handleMouseEnter} onMouseleave={this.handleMouseLeave}>
+        <ul ref="list">{this.getOptions()}</ul>
       </div>
-    )
+    );
   },
-}
+};
 
-export default Select
-
+export default Select;
